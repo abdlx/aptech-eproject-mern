@@ -1,0 +1,10 @@
+
+  [32m[1mVITE[22m v8.1.3[39m  [2mready in [0m[1m147[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+[2m2:56:12 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mbuild-test/index.html[22m
+[2m2:57:07 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mbuild/index.html[22m
+[2m2:58:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mbuild-test/index.html[22m
+[2m3:00:42 PM[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m3:00:42 PM[22m [36m[1m[vite][22m[39m server restarted.
+[2m3:00:49 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mbuild/index.html[22m
