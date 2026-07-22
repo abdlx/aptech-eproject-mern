@@ -1,6 +1,15 @@
-import Workout from '../models/Workout.js';
+// ============================================================================
+// Original author: Munawwar (base Fitness Tracker backend).
+// Modified by: Abdullah — added features on top (see AUTHORS.md for what changed).
+// ============================================================================
 
-// Get All Workouts
+import Workout from '../models/Workout.js';
+import { notify } from '../services/notificationService.js';
+import { checkGoalsForUser } from '../services/goalService.js';
+import { paginate, buildMeta } from '../utils/pagination.js';
+
+// Get All Workouts. Returns a bare array by default (back-compat); when `page`
+// or `limit` is supplied, returns a paginated { items, meta } envelope.
 export const getWorkouts = async (req, res) => {
   try {
     const { category, search } = req.query;
@@ -9,8 +18,18 @@ export const getWorkouts = async (req, res) => {
     if (category) query.category = category;
     if (search) query.name = { $regex: search, $options: 'i' };
 
-    const workouts = await Workout.find(query).sort({ date: -1 });
-    res.json(workouts);
+    const wantsPage = req.query.page !== undefined || req.query.limit !== undefined;
+    if (!wantsPage) {
+      const workouts = await Workout.find(query).sort({ date: -1 });
+      return res.json(workouts);
+    }
+
+    const { page, limit, skip } = paginate(req.query);
+    const [items, total] = await Promise.all([
+      Workout.find(query).sort({ date: -1 }).skip(skip).limit(limit),
+      Workout.countDocuments(query),
+    ]);
+    res.json({ items, meta: buildMeta(total, page, limit) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -28,6 +47,16 @@ export const createWorkout = async (req, res) => {
       exercises,
       tags
     });
+
+    // Automatic notification
+    await notify({
+      user: req.user._id,
+      message: `Workout "${name}" completed successfully!`,
+      type: 'workout'
+    });
+
+    // Re-evaluate goals that track workout counts.
+    await checkGoalsForUser(req.user._id, 'workout');
 
     res.status(201).json(workout);
   } catch (error) {

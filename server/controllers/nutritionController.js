@@ -1,6 +1,15 @@
-import Nutrition from '../models/Nutrition.js';
+// ============================================================================
+// Original author: Munawwar (base Fitness Tracker backend).
+// Modified by: Abdullah — added features on top (see AUTHORS.md for what changed).
+// ============================================================================
 
-// Get All Nutrition Logs
+import Nutrition from '../models/Nutrition.js';
+import { notify } from '../services/notificationService.js';
+import { checkGoalsForUser } from '../services/goalService.js';
+import { paginate, buildMeta } from '../utils/pagination.js';
+
+// Get All Nutrition Logs. Bare array by default; paginated envelope when
+// `page`/`limit` is supplied.
 export const getNutrition = async (req, res) => {
   try {
     const { mealType, search } = req.query;
@@ -9,8 +18,18 @@ export const getNutrition = async (req, res) => {
     if (mealType) query.mealType = mealType;
     if (search) query['foods.name'] = { $regex: search, $options: 'i' };
 
-    const nutrition = await Nutrition.find(query).sort({ date: -1 });
-    res.json(nutrition);
+    const wantsPage = req.query.page !== undefined || req.query.limit !== undefined;
+    if (!wantsPage) {
+      const nutrition = await Nutrition.find(query).sort({ date: -1 });
+      return res.json(nutrition);
+    }
+
+    const { page, limit, skip } = paginate(req.query);
+    const [items, total] = await Promise.all([
+      Nutrition.find(query).sort({ date: -1 }).skip(skip).limit(limit),
+      Nutrition.countDocuments(query),
+    ]);
+    res.json({ items, meta: buildMeta(total, page, limit) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -26,6 +45,15 @@ export const createNutrition = async (req, res) => {
       mealType,
       foods
     });
+
+    // Automatic notification
+    await notify({
+      user: req.user._id,
+      message: `${mealType} meal logged successfully!`,
+      type: 'nutrition'
+    });
+
+    await checkGoalsForUser(req.user._id, 'nutrition');
 
     res.status(201).json(nutrition);
   } catch (error) {

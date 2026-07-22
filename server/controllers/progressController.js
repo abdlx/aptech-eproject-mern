@@ -1,10 +1,30 @@
-import Progress from '../models/Progress.js';
+// ============================================================================
+// Original author: Munawwar (base Fitness Tracker backend).
+// Modified by: Abdullah — added features on top (see AUTHORS.md for what changed).
+// ============================================================================
 
-// Get All Progress
+import Progress from '../models/Progress.js';
+import { notify } from '../services/notificationService.js';
+import { checkGoalsForUser } from '../services/goalService.js';
+import { paginate, buildMeta } from '../utils/pagination.js';
+
+// Get All Progress. Bare array by default; paginated envelope when `page`/`limit`
+// is supplied.
 export const getProgress = async (req, res) => {
   try {
-    const progress = await Progress.find({ user: req.user._id }).sort({ date: -1 });
-    res.json(progress);
+    const query = { user: req.user._id };
+    const wantsPage = req.query.page !== undefined || req.query.limit !== undefined;
+    if (!wantsPage) {
+      const progress = await Progress.find(query).sort({ date: -1 });
+      return res.json(progress);
+    }
+
+    const { page, limit, skip } = paginate(req.query);
+    const [items, total] = await Promise.all([
+      Progress.find(query).sort({ date: -1 }).skip(skip).limit(limit),
+      Progress.countDocuments(query),
+    ]);
+    res.json({ items, meta: buildMeta(total, page, limit) });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -22,6 +42,15 @@ export const createProgress = async (req, res) => {
       performanceMetrics,
       notes
     });
+
+    // Automatic notification
+    await notify({
+      user: req.user._id,
+      message: `Progress logged! Weight: ${weight}kg`,
+      type: 'progress'
+    });
+
+    await checkGoalsForUser(req.user._id, 'progress');
 
     res.status(201).json(progress);
   } catch (error) {

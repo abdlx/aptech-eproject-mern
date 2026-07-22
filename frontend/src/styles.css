@@ -1,4 +1,16 @@
+/*
+ * Original author: Munawwar (base Fitness Tracker UI).
+ * Modified by: Abdullah — added the Live Feed styles (see AUTHORS.md).
+ */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/*
+  Fully fluid, responsive stylesheet.
+  Sizing uses clamp(min, preferred, max) so the whole UI scales smoothly
+  from large desktops down to the world's smallest phones (~240px wide).
+  Every multi-item section stays in a grid (2 columns minimum) even at the
+  smallest widths, so cards never collapse into a single tall column.
+*/
 
 :root {
   color: #f7f8fb;
@@ -10,13 +22,29 @@
   --amber: #f3a316;
   --muted: #9b9da3;
   --line: rgba(255, 255, 255, .09);
+
+  /* Fluid design tokens — shared spacing/radius scale that shrinks on small screens. */
+  --gap: clamp(8px, 2.6vw, 20px);
+  --gap-sm: clamp(6px, 1.8vw, 12px);
+  --pad-card: clamp(12px, 3.4vw, 24px);
+  --radius: clamp(14px, 3.6vw, 20px);
+  --radius-sm: clamp(10px, 2.6vw, 14px);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  /* Never allow the page itself to scroll sideways, even at 240px. */
+  overflow-x: hidden;
+}
 
 body {
   margin: 0;
   min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
   display: grid;
   place-items: start center;
   background:
@@ -24,17 +52,29 @@ body {
     #030405;
 }
 
-button, a { font: inherit; color: inherit; }
-button { cursor: pointer; }
+img,
+svg {
+  max-width: 100%;
+}
+
+button,
+a {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
 
 .phone {
   width: min(100%, 854px);
-  min-height: 1842px;
-  padding: 26px 32px 150px;
+  min-height: clamp(640px, 100dvh, 1842px);
+  padding: clamp(14px, 4vw, 26px) clamp(12px, 4vw, 32px) clamp(104px, 22vw, 150px);
   position: relative;
   overflow: hidden;
   border: 4px solid rgba(255, 255, 255, .075);
-  border-radius: 66px;
+  border-radius: clamp(0px, 8vw, 66px);
   background:
     radial-gradient(circle at 50% 14%, rgba(183, 255, 0, .125), transparent 21%),
     radial-gradient(circle at 10% 38%, rgba(20, 180, 255, .055), transparent 17%),
@@ -54,32 +94,43 @@ button { cursor: pointer; }
   pointer-events: none;
 }
 
-.topbar, .hero, .stats, .section-title, .overview, .progress-card, .actions, .activity-list, .bottom-nav {
+.topbar,
+.hero,
+.stats,
+.section-title,
+.overview,
+.progress-card,
+.actions,
+.activity-list,
+.bottom-nav {
   position: relative;
   z-index: 1;
 }
 
 .topbar {
-  height: 70px;
+  min-height: clamp(48px, 12vw, 70px);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 0 10px 36px;
+  gap: clamp(8px, 3vw, 20px);
+  margin: 0 clamp(2px, 1.2vw, 10px) clamp(20px, 6vw, 36px);
 }
 
 .logo {
   font-weight: 800;
-  font-size: 43px;
+  font-size: clamp(28px, 8vw, 43px);
   line-height: 1;
   letter-spacing: 0;
 }
 
-.logo span { color: var(--lime); }
+.logo span {
+  color: var(--lime);
+}
 
 .top-icons {
   display: flex;
   align-items: center;
-  gap: 42px;
+  gap: clamp(6px, 2.4vw, 14px);
   color: #eef0f4;
 }
 
@@ -93,68 +144,86 @@ button { cursor: pointer; }
   padding: 0;
 }
 
+/* Square touch targets so the icons sit evenly and align with the avatar. */
+.top-icons>button {
+  flex: 0 0 auto;
+  width: clamp(38px, 10vw, 46px);
+  height: clamp(38px, 10vw, 46px);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.top-icons>button:not(.avatar):hover,
+.top-icons>button:not(.avatar):focus-visible {
+  background: rgba(255, 255, 255, .07);
+}
+
+/* Header icons scale down on small screens. */
+.top-icons button svg {
+  width: clamp(20px, 5.4vw, 24px);
+  height: clamp(20px, 5.4vw, 24px);
+}
+
 .logo-button {
   text-align: left;
 }
 
-.notif { position: relative; }
-
-.notif::after,
-.avatar::after {
-  content: "";
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--lime);
-  box-shadow: 0 0 14px var(--lime);
+/* Single, clean notification badge on the bell. Sized/placed relative to the
+   centered 24px icon inside its 46px button, with a ring that matches the
+   header background so it reads as a crisp dot, not a glow. */
+.notif {
+  position: relative;
 }
 
-.notif::after { right: -5px; top: -8px; }
+.notif::after {
+  content: "";
+  position: absolute;
+  top: clamp(8px, 2.6vw, 11px);
+  right: clamp(8px, 2.6vw, 11px);
+  width: clamp(8px, 2vw, 10px);
+  height: clamp(8px, 2vw, 10px);
+  border-radius: 50%;
+  background: var(--lime);
+  border: 2px solid #05070a;
+}
 
 .avatar {
-  width: 70px;
-  height: 70px;
+  width: clamp(38px, 10vw, 46px);
+  height: clamp(38px, 10vw, 46px);
+  flex: 0 0 auto;
   position: relative;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 51% 31%, #f1b18c 0 13px, transparent 14px),
-    radial-gradient(circle at 50% 24%, #12151c 0 20px, transparent 21px),
-    linear-gradient(145deg, #384150, #111318);
-  border: 2px solid rgba(255, 255, 255, .13);
+  background: linear-gradient(145deg, #2a323d, #12151b);
+  border: 1px solid rgba(255, 255, 255, .14);
+  color: #cfd3da;
   display: grid;
   place-items: center;
   overflow: hidden;
 }
 
-.avatar span {
-  width: 45px;
-  height: 38px;
-  margin-top: 28px;
-  border-radius: 20px 20px 8px 8px;
-  background: linear-gradient(#202938 0 35%, #15191f 36%);
-  box-shadow: inset 0 18px 0 rgba(240, 178, 141, .9);
+.avatar svg {
+  width: clamp(18px, 5vw, 22px);
+  height: clamp(18px, 5vw, 22px);
 }
 
-.avatar::after {
-  right: -1px;
-  bottom: 3px;
-  width: 16px;
-  height: 16px;
-  border: 5px solid #07090b;
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .hero h1 {
-  margin: 0 8px;
-  font-size: 46px;
+  margin: 0 clamp(2px, 1vw, 8px);
+  font-size: clamp(28px, 8.5vw, 46px);
   line-height: 1.08;
   letter-spacing: 0;
 }
 
 .hero p {
-  margin: 12px 8px 27px;
+  margin: clamp(8px, 2vw, 12px) clamp(2px, 1vw, 8px) clamp(18px, 5vw, 27px);
   color: #a2a4aa;
-  font-size: 23px;
+  font-size: clamp(14px, 3.6vw, 23px);
   line-height: 1.35;
 }
 
@@ -165,40 +234,44 @@ button { cursor: pointer; }
   backdrop-filter: blur(18px);
 }
 
+/* --- Stats: always a grid. 4-up on wide screens, 2x2 on phones (never 1). --- */
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gap);
 }
 
 .stat-card {
-  min-height: 193px;
-  border-radius: 20px;
-  padding: 24px 23px;
+  min-width: 0;
+  min-height: clamp(120px, 30vw, 193px);
+  border-radius: var(--radius);
+  padding: var(--pad-card);
   display: grid;
-  grid-template-columns: 58px 1fr;
-  column-gap: 16px;
+  grid-template-columns: clamp(38px, 9vw, 58px) 1fr;
+  column-gap: clamp(8px, 2.4vw, 16px);
   align-items: start;
 }
 
 .stat-card p {
   color: #b6b7bd;
-  font-size: 20px;
-  margin: 7px 0 8px;
+  font-size: clamp(12px, 3vw, 20px);
+  margin: clamp(3px, 1vw, 7px) 0 clamp(4px, 1vw, 8px);
+  min-width: 0;
 }
 
 .stat-card strong {
   display: block;
-  font-size: 37px;
+  font-size: clamp(20px, 6vw, 37px);
   line-height: 1;
   letter-spacing: 0;
+  word-break: break-word;
 }
 
 .stat-card span {
   display: block;
   color: #a7a9ae;
-  font-size: 19px;
-  margin-top: 9px;
+  font-size: clamp(11px, 2.8vw, 19px);
+  margin-top: clamp(4px, 1.2vw, 9px);
 }
 
 .icon-bubble,
@@ -209,30 +282,60 @@ button { cursor: pointer; }
 }
 
 .icon-bubble {
-  width: 56px;
-  height: 56px;
+  width: clamp(36px, 9vw, 56px);
+  height: clamp(36px, 9vw, 56px);
 }
 
-.pink { color: var(--pink); }
-.lime { color: var(--lime); }
-.cyan { color: var(--cyan); }
-.amber { color: var(--amber); }
-.muted { color: #a9abb1; }
+.icon-bubble svg {
+  width: clamp(18px, 4.6vw, 26px);
+  height: clamp(18px, 4.6vw, 26px);
+}
+
+.pink {
+  color: var(--pink);
+}
+
+.lime {
+  color: var(--lime);
+}
+
+.cyan {
+  color: var(--cyan);
+}
+
+.amber {
+  color: var(--amber);
+}
+
+.muted {
+  color: #a9abb1;
+}
 
 .icon-bubble.pink,
-.mini-icon.pink { background: rgba(255, 70, 105, .18); }
+.mini-icon.pink {
+  background: rgba(255, 70, 105, .18);
+}
 
 .icon-bubble.lime,
-.mini-icon.lime { background: rgba(183, 255, 0, .16); }
+.mini-icon.lime {
+  background: rgba(183, 255, 0, .16);
+}
 
 .icon-bubble.cyan,
-.mini-icon.cyan { background: rgba(35, 200, 240, .17); }
+.mini-icon.cyan {
+  background: rgba(35, 200, 240, .17);
+}
+
+.icon-bubble.amber,
+.mini-icon.amber {
+  background: rgba(243, 163, 22, .18);
+}
 
 .meter {
   grid-column: 1 / -1;
-  height: 8px;
+  height: clamp(6px, 1.4vw, 8px);
   border-radius: 99px;
-  margin-top: 23px;
+  margin-top: clamp(12px, 3vw, 23px);
   background: rgba(255, 255, 255, .09);
   overflow: hidden;
 }
@@ -244,20 +347,33 @@ button { cursor: pointer; }
   box-shadow: 0 0 18px currentColor;
 }
 
-.meter .pink { background: var(--pink); }
-.meter .lime { background: var(--lime); }
-.meter .cyan { background: var(--cyan); }
+.meter .pink {
+  background: var(--pink);
+}
+
+.meter .lime {
+  background: var(--lime);
+}
+
+.meter .cyan {
+  background: var(--cyan);
+}
+
+.meter .amber {
+  background: var(--amber);
+}
 
 .section-title {
-  margin: 38px 12px 20px;
+  margin: clamp(24px, 6vw, 38px) clamp(4px, 1.6vw, 12px) clamp(12px, 3vw, 20px);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
 }
 
 .section-title h2 {
   margin: 0;
-  font-size: 26px;
+  font-size: clamp(18px, 4.6vw, 26px);
   line-height: 1.2;
   letter-spacing: 0;
 }
@@ -265,7 +381,7 @@ button { cursor: pointer; }
 .section-title a {
   color: var(--lime);
   text-decoration: none;
-  font-size: 20px;
+  font-size: clamp(13px, 3.4vw, 20px);
 }
 
 .section-title.solo {
@@ -273,19 +389,21 @@ button { cursor: pointer; }
   margin-bottom: 22px;
 }
 
+/* --- Today's Overview: two panels side by side, holds on small screens. --- */
 .overview {
-  height: 198px;
-  border-radius: 20px;
+  min-height: clamp(112px, 28vw, 150px);
+  border-radius: var(--radius);
   display: grid;
   grid-template-columns: 1fr 1fr;
   overflow: hidden;
 }
 
 .overview-block {
-  padding: 43px 30px;
+  padding: clamp(14px, 3.4vw, 26px) clamp(14px, 3.6vw, 30px);
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  min-width: 0;
 }
 
 .overview-block img {
@@ -307,124 +425,159 @@ button { cursor: pointer; }
   z-index: -2;
 }
 
-.overview-block > small,
-.overview-block > h3,
-.overview-block > p {
+.overview-block>small,
+.overview-block>h3,
+.overview-block>p {
   position: relative;
   z-index: 1;
 }
 
 .overview small {
   color: var(--lime);
-  font-size: 18px;
+  font-size: clamp(12px, 2.8vw, 18px);
   font-weight: 700;
 }
 
-.meal-bg small { color: var(--cyan); }
+.meal-bg small {
+  color: var(--cyan);
+}
 
 .overview h3 {
-  margin: 14px 0 23px;
-  font-size: 27px;
+  margin: clamp(6px, 1.6vw, 10px) 0 clamp(8px, 2.2vw, 14px);
+  font-size: clamp(16px, 4.4vw, 27px);
   line-height: 1;
+  word-break: break-word;
 }
 
 .overview p {
   margin: 0;
   color: #aeb0b7;
-  font-size: 20px;
+  font-size: clamp(12px, 3vw, 20px);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
+.overview p svg {
+  width: clamp(15px, 3.4vw, 21px);
+  height: clamp(15px, 3.4vw, 21px);
+  flex: 0 0 auto;
+}
+
+/* --- Weekly progress chart --- */
 .progress-card {
-  height: 241px;
-  border-radius: 20px;
-  padding: 36px 30px 24px 82px;
+  height: clamp(190px, 48vw, 241px);
+  border-radius: var(--radius);
+  padding: clamp(24px, 6vw, 36px) clamp(12px, 3.4vw, 30px) clamp(16px, 4vw, 24px) clamp(46px, 12vw, 82px);
   position: relative;
 }
 
 .chart-grid {
   position: absolute;
-  left: 28px;
-  top: 33px;
-  bottom: 54px;
+  left: clamp(8px, 2.4vw, 28px);
+  top: clamp(24px, 6vw, 33px);
+  bottom: clamp(44px, 11vw, 54px);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   color: #9fa1a7;
-  font-size: 16px;
+  font-size: clamp(10px, 2.4vw, 16px);
 }
 
 .progress-card::before {
   content: "";
   position: absolute;
-  left: 82px;
-  right: 30px;
-  top: 48px;
-  bottom: 62px;
+  left: clamp(46px, 12vw, 82px);
+  right: clamp(12px, 3.4vw, 30px);
+  top: clamp(36px, 9vw, 48px);
+  bottom: clamp(48px, 12vw, 62px);
   background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, .08) 0 1px, transparent 1px 43px);
 }
 
 .chart {
   position: relative;
   width: 100%;
-  height: 159px;
+  height: clamp(110px, 30vw, 159px);
   overflow: visible;
 }
 
-.chart .area { fill: url(#area); }
-.chart .line { fill: none; stroke: var(--lime); stroke-width: 5; }
-.chart circle { fill: var(--lime); filter: drop-shadow(0 0 10px rgba(183, 255, 0, .9)); }
-.chart line { stroke: rgba(255, 255, 255, .13); stroke-width: 2; }
+.chart .area {
+  fill: url(#area);
+}
+
+.chart .line {
+  fill: none;
+  stroke: var(--lime);
+  stroke-width: 5;
+}
+
+.chart circle {
+  fill: var(--lime);
+  filter: drop-shadow(0 0 10px rgba(183, 255, 0, .9));
+}
+
+.chart line {
+  stroke: rgba(255, 255, 255, .13);
+  stroke-width: 2;
+}
 
 .tooltip {
   position: absolute;
-  top: 37px;
+  top: clamp(28px, 7vw, 37px);
   left: 66%;
   transform: translateX(-50%);
   background: rgba(31, 34, 39, .96);
-  padding: 11px 15px;
+  padding: clamp(7px, 1.8vw, 11px) clamp(10px, 2.6vw, 15px);
   border-radius: 12px;
-  font-size: 16px;
+  font-size: clamp(11px, 2.6vw, 16px);
 }
 
 .days {
   display: flex;
   justify-content: space-between;
   color: #9fa1a7;
-  font-size: 16px;
+  font-size: clamp(9px, 2.2vw, 16px);
   padding-top: 2px;
 }
 
+/* --- Quick actions: five buttons wrap into a tidy grid.
+   3-up on wide, 2-up on phones (never a single column). --- */
 .actions {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 18px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--gap);
 }
 
 .action {
-  height: 156px;
-  border-radius: 20px;
+  min-width: 0;
+  height: clamp(104px, 26vw, 156px);
+  border-radius: var(--radius);
   border: 1px solid rgba(255, 255, 255, .10);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 3px;
+  padding: clamp(8px, 2vw, 14px);
+  text-align: center;
   background: linear-gradient(135deg, rgba(31, 34, 39, .86), rgba(17, 19, 22, .78));
 }
 
 .action span {
-  height: 55px;
+  height: clamp(38px, 10vw, 55px);
   display: grid;
   place-items: center;
 }
 
+.action span svg {
+  width: clamp(20px, 5vw, 26px);
+  height: clamp(20px, 5vw, 26px);
+}
+
 .action .featured-action {
-  width: 43px;
-  height: 43px;
-  margin-bottom: 10px;
+  width: clamp(34px, 8vw, 43px);
+  height: clamp(34px, 8vw, 43px);
+  margin-bottom: clamp(6px, 1.6vw, 10px);
   color: #030405;
   background: var(--lime);
   border-radius: 50%;
@@ -432,55 +585,94 @@ button { cursor: pointer; }
 }
 
 .action b {
-  font-size: 20px;
+  font-size: clamp(13px, 3.2vw, 20px);
   line-height: 1.09;
   font-weight: 500;
 }
 
 .activity-list {
-  border-radius: 20px;
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
 .activity {
-  min-height: 88px;
+  min-height: clamp(64px, 16vw, 88px);
   display: grid;
-  grid-template-columns: 54px 1fr auto 30px;
+  grid-template-columns: clamp(40px, 10vw, 54px) minmax(0, 1fr) auto clamp(22px, 6vw, 30px);
   align-items: center;
-  gap: 20px;
-  padding: 17px 29px;
+  gap: clamp(10px, 3vw, 20px);
+  padding: clamp(12px, 3vw, 17px) clamp(14px, 4vw, 29px);
   border-bottom: 1px solid rgba(255, 255, 255, .055);
 }
 
-.activity:last-child { border-bottom: 0; }
+.activity:last-child {
+  border-bottom: 0;
+}
 
 .mini-icon {
-  width: 48px;
-  height: 48px;
+  width: clamp(38px, 9vw, 48px);
+  height: clamp(38px, 9vw, 48px);
   border-radius: 10px;
+}
+
+.mini-icon svg {
+  width: clamp(18px, 4.6vw, 24px);
+  height: clamp(18px, 4.6vw, 24px);
+}
+
+.activity>div {
+  min-width: 0;
 }
 
 .activity h3 {
   margin: 0 0 5px;
-  font-size: 19px;
+  font-size: clamp(14px, 3.6vw, 19px);
+  overflow-wrap: anywhere;
 }
 
 .activity p,
 .activity time {
   margin: 0;
   color: #a7a9af;
-  font-size: 18px;
+  font-size: clamp(12px, 3vw, 18px);
+  overflow-wrap: anywhere;
 }
 
-.activity > svg { color: #92d600; }
+.activity>svg {
+  color: #92d600;
+  flex: 0 0 auto;
+}
 
+/* --- Bottom navigation ---
+   The bar surface and the round add-button share these variables so the
+   circular notch cut into the bar is always concentric with the button
+   with a uniform gap all the way around, at every screen width.
+   --nav-btn-d : add-button diameter
+   --nav-gap   : uniform empty ring between button edge and bar cutout
+   --nav-lift  : how far the button center sits ABOVE the bar's top edge
+   --notch-r   : cutout radius = button radius + gap
+   --notch-cy  : cutout center Y, measured from the bar's top edge (negative). */
 .bottom-nav {
+  --nav-btn-d: clamp(50px, 13vw, 58px);
+  --nav-gap: clamp(6px, 1.6vw, 8px);
+  /* button center sits near the bar's top edge; lower lift = button sits
+     further down into the bar. The notch center uses the same value, so
+     the dip moves down with the button and stays balanced. */
+  --nav-lift: clamp(-6px, -1.4vw, -3px);
+  --notch-r: calc(var(--nav-btn-d) / 2 + var(--nav-gap));
+  --notch-cy: calc(-1 * var(--nav-lift));
+  /* Shared notch mask: a single circular cutout (transparent inside, opaque
+     outside). Reused by the surface and rim-light so all follow one geometry. */
+  --notch-circle: radial-gradient(circle var(--notch-r) at 50% var(--notch-cy),
+      transparent calc(100% - 1.2px), #000 100%);
+  --notch-mask: var(--notch-circle);
+
   position: absolute;
-  left: 16px;
-  right: 16px;
+  left: clamp(8px, 3vw, 16px);
+  right: clamp(8px, 3vw, 16px);
   bottom: 12px;
   width: auto;
-  height: 74px;
+  height: clamp(62px, 16vw, 74px);
   margin: 0;
   color: #8f9299;
   isolation: isolate;
@@ -488,28 +680,68 @@ button { cursor: pointer; }
   z-index: 20;
 }
 
-.nav-shape {
+/* The bar itself, drawn in CSS to match the .glass cards. The radial-gradient
+   mask punches a perfectly round hole so the gap around the button stays
+   circular and uniform regardless of the non-square bar. The diagonal
+   gradient + soft drop shadow give it the same solid, lit depth as the cards. */
+.nav-surface {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  filter: drop-shadow(0 -8px 30px rgba(0, 0, 0, .45));
+  border-radius: clamp(20px, 6vw, 32px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0) 34%),
+    linear-gradient(135deg, #141a21 0%, #0c1015 45%, #080b0f 100%);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, .5);
+  -webkit-mask: var(--notch-mask);
+  mask: var(--notch-mask);
   z-index: 0;
 }
 
-.nav-fill {
-  fill: url(#navFill);
-  stroke: rgba(255, 255, 255, .08);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+/* Rim-light border along the rounded-rectangle edges. A 1px hairline made by
+   masking a top-lit gradient with (full shape XOR its inset) so only the ring
+   paints, then intersected with the notch mask so the ring never draws a
+   straight line across the circular cutout. */
+.nav-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(180deg,
+      rgba(255, 255, 255, .22) 0%,
+      rgba(255, 255, 255, .07) 24%,
+      rgba(255, 255, 255, .03) 55%,
+      rgba(255, 255, 255, .07) 100%);
+  /* Layer 1+2 (exclude) => rounded-rect ring; then intersect with the notch
+     circle so the ring never crosses the cutout. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0),
+    var(--notch-circle);
+  -webkit-mask-composite: xor, source-in;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0),
+    var(--notch-circle);
+  mask-composite: exclude, intersect;
+  z-index: 1;
+  pointer-events: none;
 }
 
-.nav-inner-highlight {
-  fill: none;
-  stroke: rgba(255, 255, 255, .08);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+/* Rim light along the curved notch edge itself, so the cutout catches the
+   same light as the outer edges. A bright ring clipped to just inside the
+   notch radius. */
+.nav-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle calc(var(--notch-r) + 1.1px) at 50% var(--notch-cy),
+      transparent calc(100% - 2.2px),
+      rgba(255, 255, 255, .22) calc(100% - 1.1px),
+      transparent 100%);
+  z-index: 1;
+  pointer-events: none;
 }
 
 .nav-items {
@@ -518,31 +750,44 @@ button { cursor: pointer; }
   height: 100%;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  align-items: end;
-  padding: 12px 10px 9px;
+  align-items: center;
+  padding: 0 clamp(4px, 2vw, 10px);
 }
 
 .nav-item {
   color: #8f9299;
   display: flex;
   min-width: 0;
-  min-height: 50px;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
-  font-size: 12px;
+  justify-content: center;
+  gap: clamp(3px, 1vw, 5px);
+  font-size: clamp(9px, 2.4vw, 12px);
   line-height: 1;
   font-weight: 500;
   position: relative;
 }
 
+.nav-item svg {
+  width: clamp(19px, 5vw, 24px);
+  height: clamp(19px, 5vw, 24px);
+}
+
+.nav-item span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Auth screen --- */
 .auth-shell {
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: clamp(12px, 4vw, 24px);
   background:
     radial-gradient(circle at 50% 10%, rgba(183, 255, 0, .13), transparent 18rem),
     radial-gradient(circle at 20% 90%, rgba(36, 201, 243, .10), transparent 17rem),
@@ -551,12 +796,12 @@ button { cursor: pointer; }
 
 .auth-card {
   width: min(100%, 470px);
-  border-radius: 22px;
-  padding: 34px;
+  border-radius: var(--radius);
+  padding: clamp(20px, 6vw, 34px);
 }
 
 .auth-logo {
-  margin-bottom: 34px;
+  margin-bottom: clamp(20px, 6vw, 34px);
 }
 
 .auth-card h1,
@@ -569,42 +814,45 @@ button { cursor: pointer; }
 }
 
 .auth-card h1 {
-  font-size: 34px;
+  font-size: clamp(24px, 6.4vw, 34px);
   line-height: 1.08;
 }
 
 .auth-card p {
   color: #a7a9af;
   line-height: 1.5;
+  font-size: clamp(14px, 3.6vw, 16px);
 }
 
 .form-grid,
 .data-form {
   display: grid;
-  gap: 16px;
+  gap: clamp(12px, 3vw, 16px);
 }
 
 .form-grid {
-  margin-top: 28px;
+  margin-top: clamp(18px, 5vw, 28px);
 }
 
 .data-form {
-  border-radius: 20px;
-  padding: 24px;
+  border-radius: var(--radius);
+  padding: clamp(16px, 4.4vw, 24px);
 }
 
 label {
   display: grid;
   gap: 8px;
   color: #bec1c8;
-  font-size: 14px;
+  font-size: clamp(12px, 3.2vw, 14px);
   font-weight: 700;
+  min-width: 0;
 }
 
 input,
 select,
 textarea {
   width: 100%;
+  min-width: 0;
   min-height: 46px;
   border: 1px solid rgba(255, 255, 255, .11);
   border-radius: 12px;
@@ -640,6 +888,7 @@ textarea:focus {
   gap: 8px;
   min-height: 42px;
   padding: 0 15px;
+  flex-wrap: wrap;
 }
 
 .primary-btn {
@@ -665,7 +914,7 @@ textarea:focus {
 
 .link-btn.compact {
   min-height: auto;
-  font-size: 18px;
+  font-size: clamp(13px, 3.4vw, 18px);
 }
 
 .form-error,
@@ -680,13 +929,13 @@ textarea:focus {
 .status-banner {
   position: relative;
   z-index: 1;
-  margin: 0 8px 22px;
+  margin: 0 clamp(2px, 1vw, 8px) clamp(14px, 4vw, 22px);
 }
 
 .form-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: clamp(8px, 2.4vw, 12px);
 }
 
 .form-actions,
@@ -703,6 +952,7 @@ textarea:focus {
 
 .form-actions {
   justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .panel-view {
@@ -712,10 +962,12 @@ textarea:focus {
 
 .filters {
   margin-bottom: 18px;
+  flex-wrap: wrap;
 }
 
 .filters label {
-  flex: 1;
+  flex: 1 1 160px;
+  min-width: 0;
   position: relative;
   color: #9da0a7;
 }
@@ -732,26 +984,37 @@ textarea:focus {
 }
 
 .filters select {
-  width: 190px;
+  flex: 0 1 190px;
+  width: auto;
+  min-width: 140px;
 }
 
+/* --- Record cards: always 2-up, even on the smallest phones. --- */
 .record-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: var(--gap);
 }
 
 .record-card {
-  border-radius: 18px;
-  padding: 20px;
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  padding: clamp(14px, 3.6vw, 20px);
   display: grid;
-  gap: 12px;
+  gap: clamp(8px, 2.4vw, 12px);
+}
+
+.record-card h3 {
+  font-size: clamp(15px, 4vw, 20px);
+  overflow-wrap: anywhere;
 }
 
 .record-card p {
   margin: 0;
   color: #aeb0b7;
   line-height: 1.45;
+  font-size: clamp(12px, 3vw, 16px);
+  overflow-wrap: anywhere;
 }
 
 .record-heading,
@@ -759,7 +1022,8 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: clamp(6px, 2vw, 12px);
+  flex-wrap: wrap;
 }
 
 .record-heading time,
@@ -772,14 +1036,17 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   width: fit-content;
+  max-width: 100%;
   min-height: 27px;
   border-radius: 999px;
   padding: 0 10px;
   background: rgba(183, 255, 0, .13);
   color: var(--lime);
-  font-size: 12px;
+  font-size: clamp(10px, 2.6vw, 12px);
   font-weight: 800;
   text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pink-fill {
@@ -812,23 +1079,25 @@ textarea:focus {
   border-radius: 10px;
   padding: 7px 9px;
   background: rgba(255, 255, 255, .05);
+  font-size: clamp(11px, 2.8vw, 15px);
 }
 
 .card-actions {
   justify-content: flex-end;
+  flex-wrap: wrap;
   margin-top: 4px;
 }
 
 .empty-state {
   grid-column: 1 / -1;
-  min-height: 178px;
+  min-height: clamp(150px, 40vw, 178px);
   display: grid;
   place-items: center;
   align-content: center;
   gap: 8px;
   color: #aeb0b7;
   text-align: center;
-  padding: 24px;
+  padding: clamp(16px, 4vw, 24px);
 }
 
 .empty-state svg {
@@ -838,10 +1107,36 @@ textarea:focus {
 .empty-state p {
   margin: 0;
   max-width: 420px;
+  font-size: clamp(13px, 3.4vw, 16px);
+}
+
+/*
+  Inside the compact Notifications/Reminders cards the empty state doesn't need
+  the full hero height — shrink it so those cards stay short and tidy.
+*/
+.side-list .empty-state {
+  grid-column: auto;
+  min-height: 0;
+  gap: 6px;
+  padding: 18px 10px 6px;
+}
+
+.side-list .empty-state svg {
+  width: 26px;
+  height: 26px;
+}
+
+.side-list .empty-state h3 {
+  font-size: clamp(15px, 3.8vw, 17px);
+}
+
+.side-list .empty-state p {
+  font-size: clamp(12px, 3.1vw, 13px);
+  line-height: 1.4;
 }
 
 .compact-list {
-  border-radius: 18px;
+  border-radius: var(--radius-sm);
   padding: 14px 18px;
 }
 
@@ -849,89 +1144,222 @@ textarea:focus {
   margin: 0;
   min-height: 42px;
   display: grid;
-  grid-template-columns: 24px 1fr auto;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   color: #d8dbe0;
+}
+
+.compact-list p span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .compact-list time {
   color: #9da0a7;
 }
 
+/* --- Reports: two export cards side by side. --- */
 .report-actions {
   align-items: stretch;
+  flex-wrap: wrap;
   margin-bottom: 18px;
 }
 
 .report-card {
-  flex: 1;
-  border-radius: 18px;
-  padding: 22px;
+  flex: 1 1 200px;
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  padding: clamp(16px, 4vw, 22px);
   display: grid;
   gap: 12px;
   align-content: start;
 }
 
-.report-card > svg {
+.report-card>svg {
   color: var(--lime);
 }
 
 .report-card p {
   margin: 0;
   color: #aeb0b7;
+  font-size: clamp(13px, 3.4vw, 16px);
 }
 
+/* --- Report summary: three tiles, holds 3-up down to the smallest phones. --- */
 .report-summary {
-  border-radius: 18px;
-  padding: 18px;
+  border-radius: var(--radius-sm);
+  padding: clamp(12px, 3.4vw, 18px);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(8px, 2.4vw, 12px);
 }
 
 .report-summary p {
   margin: 0;
   display: grid;
   gap: 4px;
-  padding: 16px;
-  border-radius: 14px;
+  padding: clamp(10px, 3vw, 16px) clamp(6px, 2vw, 16px);
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, .05);
 }
 
 .report-summary strong {
-  font-size: 30px;
+  font-size: clamp(20px, 6vw, 30px);
 }
 
 .report-summary span {
   color: #9da0a7;
+  font-size: clamp(11px, 2.8vw, 16px);
 }
 
+/* --- Analytics: two cards side by side, holds on small screens. --- */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+.analytics-card {
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  padding: clamp(14px, 3.6vw, 20px);
+}
+
+.analytics-card h3 {
+  margin: 0;
+  font-size: clamp(15px, 3.8vw, 20px);
+}
+
+.analytics-card .subheading small {
+  color: #92959c;
+}
+
+.vertical-bars {
+  height: clamp(120px, 30vw, 170px);
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items: end;
+  gap: clamp(4px, 1.4vw, 9px);
+  margin: clamp(16px, 4vw, 24px) 0 clamp(14px, 3.6vw, 20px);
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+}
+
+.vertical-bars>div {
+  height: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.vertical-bars span {
+  width: min(24px, 80%);
+  min-height: 6px;
+  border-radius: 7px 7px 2px 2px;
+  background: linear-gradient(var(--lime), #689300);
+  box-shadow: 0 0 12px rgba(183, 255, 0, .2);
+}
+
+.vertical-bars small {
+  color: #92959c;
+  font-size: clamp(9px, 2vw, 11px);
+}
+
+.nutrition-bars span {
+  background: linear-gradient(var(--cyan), #137c96);
+  box-shadow: 0 0 12px rgba(36, 201, 243, .2);
+}
+
+.category-bars {
+  display: grid;
+  gap: 9px;
+}
+
+.category-bars p {
+  margin: 0;
+  display: grid;
+  grid-template-columns: clamp(52px, 16vw, 80px) minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: clamp(5px, 1.6vw, 9px);
+  color: #aeb0b7;
+  font-size: clamp(10px, 2.6vw, 12px);
+  text-transform: capitalize;
+}
+
+.category-bars i {
+  height: 7px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .08);
+  overflow: hidden;
+}
+
+.category-bars b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--lime);
+}
+
+.category-bars .chart-empty {
+  display: block;
+  grid-column: 1 / -1;
+}
+
+.macro-split {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.macro-split p {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  text-align: center;
+  padding: 10px 5px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .05);
+}
+
+.macro-split span {
+  color: #92959c;
+  font-size: clamp(10px, 2.6vw, 12px);
+  text-transform: capitalize;
+}
+
+/* --- Community split (notifications + reminders): 2-up, holds small. --- */
 .split-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
   margin-top: 16px;
 }
 
 .side-list {
-  border-radius: 18px;
-  padding: 18px;
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  padding: clamp(14px, 3.6vw, 18px);
   display: grid;
-  gap: 14px;
+  gap: 12px;
+  align-content: start;
 }
 
 .side-list article {
   display: grid;
   gap: 6px;
   padding: 13px;
-  border-radius: 14px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, .045);
 }
 
 .side-list p {
   margin: 0;
   color: #f3f4f6;
+  overflow-wrap: anywhere;
 }
 
 .muted-record {
@@ -940,6 +1368,160 @@ textarea:focus {
 
 .feedback-form {
   margin-bottom: 16px;
+}
+
+.user-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.user-search label {
+  flex: 1 1 160px;
+  min-width: 0;
+  position: relative;
+}
+
+.user-search label svg {
+  position: absolute;
+  left: 13px;
+  bottom: 14px;
+}
+
+.user-search input {
+  padding-left: 41px;
+}
+
+/* --- People results: 2-up, holds small. --- */
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+}
+
+.people-grid article {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .045);
+}
+
+.people-grid p,
+.people-grid small {
+  display: block;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.people-grid small {
+  color: #92959c;
+  margin-top: 3px;
+}
+
+.person-avatar,
+.profile-preview {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  color: #050607;
+  background: var(--lime);
+  font-weight: 800;
+}
+
+.person-avatar {
+  width: 44px;
+  height: 44px;
+}
+
+.person-avatar img,
+.profile-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 14px;
+}
+
+.profile-editor label {
+  flex: 1 1 160px;
+}
+
+.profile-preview {
+  width: 72px;
+  height: 72px;
+  font-size: 26px;
+}
+
+/* --- Light theme --- */
+.theme-light {
+  color: #15171a;
+  background: linear-gradient(135deg, #f7f9f3, #e8ece3);
+}
+
+.theme-light::before {
+  opacity: .15;
+}
+
+.theme-light .glass,
+.theme-light .action {
+  background: rgba(255, 255, 255, .76);
+  border-color: rgba(20, 24, 28, .1);
+  box-shadow: 0 14px 36px rgba(38, 45, 31, .12);
+}
+
+.theme-light .hero p,
+.theme-light .record-card p,
+.theme-light .report-card p,
+.theme-light .activity p,
+.theme-light .activity time,
+.theme-light .side-list small,
+.theme-light .compact-list time,
+.theme-light .empty-state,
+.theme-light .stat-card p,
+.theme-light .stat-card span {
+  color: #656b70;
+}
+
+.theme-light input,
+.theme-light select,
+.theme-light textarea {
+  color: #15171a;
+  background: rgba(255, 255, 255, .85);
+  border-color: rgba(20, 24, 28, .14);
+}
+
+.theme-light label,
+.theme-light .side-list p,
+.theme-light .top-icons {
+  color: #24282c;
+}
+
+.theme-light .notif::after {
+  border-color: #eef1e9;
+}
+
+.theme-light .top-icons>button:not(.avatar):hover,
+.theme-light .top-icons>button:not(.avatar):focus-visible {
+  background: rgba(20, 24, 28, .07);
 }
 
 .toggle-row {
@@ -960,14 +1542,14 @@ textarea:focus {
   z-index: 50;
   display: grid;
   place-items: center;
-  padding: 20px;
+  padding: clamp(8px, 3vw, 20px);
   background: rgba(0, 0, 0, .72);
   overflow: auto;
 }
 
 .modal-backdrop .data-form {
   width: min(100%, 650px);
-  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - clamp(16px, 6vw, 40px));
   overflow: auto;
 }
 
@@ -979,32 +1561,169 @@ textarea:focus {
   color: #C8FF00;
 }
 
+/* Nutrition has no icon (the button covers its slot); stretch it to the full
+   bar height and pin its label to the bottom so it drops clear of the button. */
 .nav-center {
-  padding-top: 30px;
+  align-self: stretch;
+  justify-content: flex-end;
+  padding-bottom: clamp(5px, 1.6vw, 8px);
 }
 
 .nav-add {
   position: absolute;
   left: 50%;
-  top: -33px;
+  /* center the button on the notch center (--notch-cy): top = cy - radius */
+  top: calc(var(--notch-cy) - var(--nav-btn-d) / 2);
   transform: translateX(-50%);
-  width: 58px;
-  height: 58px;
+  width: var(--nav-btn-d);
+  height: var(--nav-btn-d);
   border-radius: 50%;
   border: 0;
   background: #C8FF00;
   color: #050607;
   display: grid;
   place-items: center;
-  box-shadow:
-    0 0 0 7px rgba(8, 11, 15, .98),
-    0 0 0 8px rgba(255, 255, 255, .08),
-    0 0 18px rgba(200, 255, 0, .78),
-    0 0 36px rgba(200, 255, 0, .38);
   z-index: 3;
 }
 
+.nav-add svg {
+  width: clamp(22px, 6vw, 28px);
+  height: clamp(22px, 6vw, 28px);
+}
+
+/* --- Add-entry chooser (opened by the + button) --- */
+.add-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  padding: clamp(12px, 4vw, 24px);
+  padding-bottom: calc(clamp(78px, 20vw, 96px) + env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, .6);
+  backdrop-filter: blur(2px);
+  animation: add-menu-fade .16s ease-out;
+}
+
+.add-menu {
+  width: min(100%, 420px);
+  border-radius: clamp(18px, 5vw, 24px);
+  padding: clamp(16px, 4.4vw, 22px);
+  display: grid;
+  gap: clamp(12px, 3vw, 16px);
+  animation: add-menu-rise .2s ease-out;
+}
+
+.add-menu h3 {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(15px, 4vw, 19px);
+}
+
+.add-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(10px, 2.6vw, 14px);
+}
+
+.add-menu-item {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .05);
+  color: inherit;
+  padding: clamp(14px, 3.6vw, 18px) 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(6px, 1.6vw, 10px);
+}
+
+.add-menu-item span {
+  display: grid;
+  place-items: center;
+  width: clamp(44px, 12vw, 52px);
+  height: clamp(44px, 12vw, 52px);
+  border-radius: 50%;
+}
+
+.add-menu-item .lime {
+  background: rgba(183, 255, 0, .16);
+}
+
+.add-menu-item .pink {
+  background: rgba(255, 70, 105, .18);
+}
+
+.add-menu-item .cyan {
+  background: rgba(35, 200, 240, .17);
+}
+
+.add-menu-item .amber {
+  background: rgba(243, 163, 22, .18);
+}
+
+.add-menu-item b {
+  font-size: clamp(13px, 3.2vw, 16px);
+  font-weight: 600;
+}
+
+.add-menu-item:hover,
+.add-menu-item:focus-visible {
+  border-color: rgba(183, 255, 0, .5);
+  background: rgba(255, 255, 255, .08);
+}
+
+.add-menu-cancel {
+  justify-content: center;
+}
+
+@keyframes add-menu-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes add-menu-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .add-menu-backdrop,
+  .add-menu {
+    animation: none;
+  }
+}
+
+.theme-light .add-menu-item {
+  border-color: rgba(20, 24, 28, .12);
+  background: rgba(20, 24, 28, .04);
+}
+
+/* ==========================================================================
+   Breakpoints
+   The design above is fluid via clamp(), so these breakpoints only reflow
+   grid column *counts*. Grids drop from their widescreen count to 2 columns,
+   and STAY at 2 columns (never 1) all the way down to the smallest phones.
+   ========================================================================== */
+
+/* Tablet / large phone: full-bleed phone frame, fixed bottom nav. */
 @media (max-width: 760px) {
+
   html,
   body,
   #root {
@@ -1024,71 +1743,387 @@ textarea:focus {
     border: 0;
     border-radius: 0;
     min-height: 100dvh;
-    padding: 26px 18px 128px;
     box-shadow: none;
   }
 
-  .topbar {
-    height: 70px;
-    margin: 0 10px 30px;
+  .bottom-nav {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: max(8px, env(safe-area-inset-bottom));
   }
 
-  .logo {
-    font-size: 43px;
-    letter-spacing: 0;
-  }
-
-  .top-icons { gap: 20px; }
-
-  .hero h1 {
-    max-width: 330px;
-    font-size: 39px;
-    line-height: 1.08;
-  }
-
-  .hero p {
-    max-width: 335px;
-    font-size: 20px;
-  }
-
+  /* Stats and quick actions drop to two columns and hold there. */
   .stats {
-    grid-template-columns: 1fr;
-    gap: 20px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .stat-card {
-    min-height: 193px;
-    border-radius: 18px;
+  .actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .overview { grid-template-columns: 1fr; height: auto; }
-  .overview-block { min-height: 178px; }
-  .actions { grid-template-columns: repeat(2, 1fr); }
-  .activity { grid-template-columns: 50px 1fr; }
-  .activity time, .activity > svg { display: none; }
-  .nav-items { padding-inline: 7px; }
-  .nav-item { font-size: 11px; }
+  .overview {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .activity time,
+  .activity>svg {
+    display: none;
+  }
+
+  .record-grid,
+  .split-grid,
+  .analytics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
+/*
+  Small phones and below (<= 430px) — including the world's smallest screens
+  (Galaxy Fold cover ~280px, older 320px devices, down to ~240px).
+  Everything below still holds a 2-column grid.
+*/
 @media (max-width: 430px) {
   body {
-    width: 100vw;
+    width: 100%;
     min-width: 0;
     overflow-x: hidden;
   }
 
   #root {
-    width: 100vw;
+    width: 100%;
     min-height: 100dvh;
-    overflow: hidden;
+    overflow-x: hidden;
   }
 
   .phone {
-    width: 390px;
-    max-width: none;
-    left: 50%;
-    margin-left: -195px;
-    transform: scale(min(1, calc(100vw / 390)));
-    transform-origin: top center;
+    width: 100%;
+    max-width: 100%;
+    left: auto;
+    margin-left: 0;
+    transform: none;
+  }
+
+  /* Keep every grid at two columns — the 2x2 layout requirement. */
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .record-grid,
+  .split-grid,
+  .analytics-grid,
+  .people-grid,
+  .report-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* The overview keeps its two panels; they just get shorter. */
+  .overview {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .form-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .compact-list p {
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+  }
+
+  .modal-backdrop {
+    align-items: start;
+  }
+}
+
+/*
+  Ultra-narrow safety net for the world's smallest phones (<= 300px, e.g. the
+  Galaxy Z Fold cover display / 240-280px devices). Text and inputs shrink a
+  touch more so the two-column grids never overflow horizontally.
+*/
+@media (max-width: 300px) {
+
+  input,
+  select,
+  textarea {
+    min-height: 42px;
+    padding: 9px 10px;
+  }
+
+  .primary-btn,
+  .secondary-btn,
+  .link-btn,
+  .card-actions button,
+  .mini-actions button {
+    min-height: 38px;
+    padding: 0 10px;
+  }
+
+  .filters input {
+    padding-left: 36px;
+  }
+
+  .macro-row span {
+    padding: 5px 7px;
+  }
+
+  /* Very long single words (emails, food names) must wrap, not overflow. */
+  .record-card,
+  .side-list,
+  .activity,
+  .overview-block,
+  .feed-post {
+    overflow-wrap: anywhere;
+  }
+}
+
+/* ============================ Live Feed ============================ */
+.feed-composer {
+  border-radius: var(--radius);
+  padding: var(--pad-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  margin-bottom: var(--gap);
+}
+
+.feed-composer h3 {
+  margin: 0 0 4px;
+  font-size: clamp(15px, 3.6vw, 19px);
+}
+
+.feed-composer input,
+.feed-composer textarea,
+.feed-composer select {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: inherit;
+  padding: 11px 13px;
+  font: inherit;
+  min-height: 44px;
+}
+
+.feed-composer textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.composer-title {
+  font-weight: 700;
+}
+
+.composer-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap-sm);
+}
+
+.composer-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+.image-picker {
+  cursor: pointer;
+}
+
+.composer-preview {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  max-height: 320px;
+}
+
+.composer-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.preview-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .6);
+  color: #fff;
+  cursor: pointer;
+}
+
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.feed-post {
+  border-radius: var(--radius);
+  padding: var(--pad-card);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feed-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.feed-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.feed-meta strong {
+  font-size: clamp(14px, 3.4vw, 17px);
+}
+
+.feed-meta small {
+  color: var(--muted);
+  font-size: clamp(11px, 2.8vw, 13px);
+}
+
+.feed-delete {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px;
+}
+
+.feed-title {
+  margin: 0;
+  font-size: clamp(16px, 4vw, 21px);
+}
+
+.feed-body {
+  margin: 0;
+  color: #d7d8dd;
+  line-height: 1.5;
+}
+
+.feed-image {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.feed-image img {
+  width: 100%;
+  max-height: 460px;
+  object-fit: cover;
+  display: block;
+}
+
+.feed-bar {
+  display: flex;
+  gap: 18px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+
+.feed-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px 4px;
+  font-weight: 600;
+}
+
+.feed-action.liked {
+  color: var(--pink);
+}
+
+.feed-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.feed-comment {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+}
+
+.feed-comment p {
+  margin: 0;
+  font-size: clamp(13px, 3.2vw, 15px);
+  line-height: 1.4;
+}
+
+.person-avatar.small {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.feed-comment-form {
+  display: flex;
+  gap: 8px;
+}
+
+.feed-comment-form input {
+  flex: 1;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: inherit;
+  padding: 10px 12px;
+  font: inherit;
+  min-height: 42px;
+}
+
+.load-more {
+  align-self: center;
+  margin-top: 4px;
+}
+
+/* Light theme overrides mirror the app's existing .theme-light treatment. */
+.theme-light .feed-body {
+  color: #33363c;
+}
+
+.theme-light .feed-composer input,
+.theme-light .feed-composer textarea,
+.theme-light .feed-composer select,
+.theme-light .feed-comment-form input {
+  background: rgba(0, 0, 0, .03);
+}
+
+@media (max-width: 420px) {
+  .composer-row {
+    grid-template-columns: 1fr;
   }
 }

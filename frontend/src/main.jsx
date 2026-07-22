@@ -1,10 +1,15 @@
+// ============================================================================
+// Original author: Munawwar (base Fitness Tracker UI).
+// Modified by: Abdullah — added the Live Feed (composer, posts, likes, comments)
+// and nav wiring. See AUTHORS.md for details.
+// ============================================================================
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-const AUTH_KEY = 'lyfta.auth';
-const REMINDERS_KEY = 'lyfta.reminders';
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+const AUTH_KEY = 'fitness-tracker.auth';
 
 const emptyWorkout = {
   name: '',
@@ -80,39 +85,62 @@ function relativeTime(value) {
   return days === 1 ? 'Yesterday' : `${days}d ago`;
 }
 
-function downloadFile(filename, content, type) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 async function request(path, { method = 'GET', body, token } = {}) {
-  if (!API_BASE) {
-    throw new Error('Missing VITE_API_URL. Add it to frontend/.env');
-  }
-
   const headers = {};
   const config = { method, headers };
 
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) {
-    headers['Content-Type'] = 'application/json';
-    config.body = JSON.stringify(body);
+    if (body instanceof FormData) {
+      config.body = body;
+    } else {
+      headers['Content-Type'] = 'application/json';
+      config.body = JSON.stringify(body);
+    }
   }
 
   const response = await fetch(`${API_BASE}${path}`, config);
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
 
   if (!response.ok) {
-    throw new Error(data?.message || 'Request failed');
+    const error = new Error(data?.message || `Request failed (${response.status})`);
+    error.status = response.status;
+    throw error;
   }
 
   return data;
+}
+
+async function downloadReport(path, filename, token) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message || 'Report download failed');
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function assetUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//.test(path)) return path;
+  if (API_BASE.startsWith('http')) return `${new URL(API_BASE).origin}${path}`;
+  return path;
 }
 
 function Icon({ name, size = 26 }) {
@@ -152,14 +180,18 @@ function Icon({ name, size = 26 }) {
     file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /></>,
     user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4 3.7-6 8-6s7 2 8 6" /></>,
     settings: <><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9c.3.6.9 1 1.6 1h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1Z" /></>,
+    heart: <path d="M12 20.5s-7.5-4.6-9.7-9.1C.9 8.2 2.4 5 5.5 5c1.9 0 3.3 1 4.5 2.6C11.2 6 12.6 5 14.5 5c3.1 0 4.6 3.2 3.2 6.4-2.2 4.5-9.7 9.1-9.7 9.1Z" />,
+    comment: <><path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-3a8 8 0 1 1 18-8Z" /></>,
+    image: <><rect x="3" y="4" width="18" height="16" rx="2.5" /><circle cx="8.5" cy="9.5" r="1.6" /><path d="m4 18 5-5 4 3.5L16 13l4 4" /></>,
+    feed: <><path d="M4 5h16M4 12h16M4 19h10" /></>,
   };
 
-  return <svg {...(name === 'home' || name === 'flame' ? filled : common)}>{paths[name]}</svg>;
+  return <svg {...(name === 'home' || name === 'flame' || name === 'heart' ? filled : common)}>{paths[name]}</svg>;
 }
 
 function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ username: '', name: '', email: '', password: '' });
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -185,23 +217,29 @@ function AuthScreen({ onAuth }) {
   return (
     <main className="auth-shell">
       <section className="auth-card glass">
-        <div className="logo auth-logo">Ly<span>fta</span></div>
+        <div className="logo auth-logo">Fitness<span>Tracker</span></div>
         <h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
         <p>Connect to the fitness server to track workouts, meals, progress, reports, and reminders.</p>
         <form className="form-grid" onSubmit={submit}>
           {mode === 'register' && (
-            <label>
-              Name
-              <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
-            </label>
+            <>
+              <label>
+                Username
+                <input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })} required minLength="3" maxLength="30" autoComplete="username" />
+              </label>
+              <label>
+                Name
+                <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required autoComplete="name" />
+              </label>
+            </>
           )}
           <label>
             Email
-            <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
+            <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required autoComplete="email" />
           </label>
           <label>
             Password
-            <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required minLength="6" />
+            <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required minLength="6" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
           </label>
           {status && <p className="form-error">{status}</p>}
           <button className="primary-btn" type="submit" disabled={loading}>
@@ -264,6 +302,69 @@ function ProgressChart({ entries }) {
       </svg>
       <div className="tooltip">{latest ? `${latest} kg` : 'No data'}</div>
       <div className="days">{points.map((_, index) => <span key={index}>{week[index] ? formatDate(week[index].date) : `Day ${index + 1}`}</span>)}</div>
+    </section>
+  );
+}
+
+function Analytics({ workouts, nutrition }) {
+  const categoryCounts = workouts.reduce((counts, workout) => {
+    counts[workout.category] = (counts[workout.category] || 0) + 1;
+    return counts;
+  }, {});
+  const maxCategory = Math.max(1, ...Object.values(categoryCounts));
+  const macros = nutrition.reduce((total, meal) => {
+    (meal.foods || []).forEach((food) => {
+      total.protein += num(food.protein);
+      total.carbs += num(food.carbs);
+      total.fats += num(food.fats);
+    });
+    return total;
+  }, { protein: 0, carbs: 0, fats: 0 });
+  const macroCalories = {
+    protein: macros.protein * 4,
+    carbs: macros.carbs * 4,
+    fats: macros.fats * 9,
+  };
+  const totalMacroCalories = Math.max(1, Object.values(macroCalories).reduce((sum, value) => sum + value, 0));
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - (6 - index));
+    const next = new Date(date);
+    next.setDate(next.getDate() + 1);
+    const calories = nutrition
+      .filter((meal) => new Date(meal.date) >= date && new Date(meal.date) < next)
+      .reduce((sum, meal) => sum + (meal.foods || []).reduce((foodSum, food) => foodSum + num(food.calories), 0), 0);
+    const workoutCount = workouts.filter((workout) => new Date(workout.date) >= date && new Date(workout.date) < next).length;
+    return { label: new Intl.DateTimeFormat('en', { weekday: 'short' }).format(date), calories, workoutCount };
+  });
+  const maxCalories = Math.max(1, ...days.map((day) => day.calories));
+  const maxWorkouts = Math.max(1, ...days.map((day) => day.workoutCount));
+
+  return (
+    <section className="analytics-grid">
+      <article className="glass analytics-card">
+        <div className="subheading"><h3>Workout frequency</h3><small>Last 7 days</small></div>
+        <div className="vertical-bars" aria-label="Workout frequency chart">
+          {days.map((day) => <div key={day.label}><span style={{ height: `${Math.max(6, (day.workoutCount / maxWorkouts) * 100)}%` }} title={`${day.workoutCount} workouts`} /><small>{day.label}</small></div>)}
+        </div>
+        <div className="category-bars">
+          {Object.keys(categoryCounts).length ? Object.entries(categoryCounts).map(([category, count]) => (
+            <p key={category}><span>{category}</span><i><b style={{ width: `${(count / maxCategory) * 100}%` }} /></i><strong>{count}</strong></p>
+          )) : <p className="chart-empty">Log workouts to see category trends.</p>}
+        </div>
+      </article>
+      <article className="glass analytics-card">
+        <div className="subheading"><h3>Nutrition trend</h3><small>Last 7 days</small></div>
+        <div className="vertical-bars nutrition-bars" aria-label="Daily calorie chart">
+          {days.map((day) => <div key={day.label}><span style={{ height: `${Math.max(6, (day.calories / maxCalories) * 100)}%` }} title={`${day.calories} kcal`} /><small>{day.label}</small></div>)}
+        </div>
+        <div className="macro-split" aria-label="Macronutrient calorie distribution">
+          {Object.entries(macroCalories).map(([macro, calories]) => (
+            <p key={macro}><strong>{Math.round((calories / totalMacroCalories) * 100)}%</strong><span>{macro}</span></p>
+          ))}
+        </div>
+      </article>
     </section>
   );
 }
@@ -413,7 +514,7 @@ function ReminderForm({ onCancel, onSubmit }) {
 
   function submit(event) {
     event.preventDefault();
-    onSubmit({ ...form, id: crypto.randomUUID() });
+    onSubmit(form);
   }
 
   return (
@@ -505,7 +606,7 @@ function Dashboard({ stats, workouts, nutrition, progress, reminders, openForm, 
         <>
           <SectionTitle title="Upcoming Reminders" />
           <section className="glass compact-list">
-            {reminders.slice(0, 3).map((item) => <p key={item.id}><Icon name="bell" size={18} /><span>{item.title}</span><time>{formatDate(item.time)}</time></p>)}
+            {reminders.slice(0, 3).map((item) => <p key={item._id}><Icon name="bell" size={18} /><span>{item.title}</span><time>{formatDate(item.time)}</time></p>)}
           </section>
         </>
       )}
@@ -589,24 +690,28 @@ function ProgressView({ progress, onEdit, onDelete, onAdd }) {
   );
 }
 
-function ReportsView({ onExportCsv, onExportPdf, totals }) {
+function ReportsView({ onExportCsv, onExportPdf, totals, workouts, nutrition }) {
   return (
     <Panel title="Reports">
       <section className="report-actions">
         <article className="glass report-card"><Icon name="file" /><h3>CSV export</h3><p>Download workouts, nutrition, and progress in spreadsheet-friendly format.</p><button className="primary-btn" onClick={onExportCsv}>Download CSV</button></article>
-        <article className="glass report-card"><Icon name="chartPie" /><h3>Printable PDF</h3><p>Open a printable report from the backend report data.</p><button className="secondary-btn" onClick={onExportPdf}>Open report</button></article>
+        <article className="glass report-card"><Icon name="chartPie" /><h3>PDF report</h3><p>Download a formatted fitness summary generated by the backend.</p><button className="secondary-btn" onClick={onExportPdf}>Download PDF</button></article>
       </section>
       <section className="glass report-summary">
         <p><strong>{totals.workouts}</strong><span>Workouts</span></p>
         <p><strong>{totals.meals}</strong><span>Meals</span></p>
         <p><strong>{totals.progress}</strong><span>Progress logs</span></p>
       </section>
+      <SectionTitle title="Workout & nutrition analytics" />
+      <Analytics workouts={workouts} nutrition={nutrition} />
     </Panel>
   );
 }
 
-function CommunityView({ feedback, notifications, reminders, onFeedback, onReadNotification, onDeleteNotification, onDeleteReminder, onReminder }) {
+function CommunityView({ feedback, notifications, reminders, onFeedback, onReadNotification, onDeleteNotification, onDeleteReminder, onReminder, onSearchUsers }) {
   const [form, setForm] = useState({ subject: '', message: '' });
+  const [userQuery, setUserQuery] = useState('');
+  const [users, setUsers] = useState([]);
 
   function submit(event) {
     event.preventDefault();
@@ -614,8 +719,23 @@ function CommunityView({ feedback, notifications, reminders, onFeedback, onReadN
     setForm({ subject: '', message: '' });
   }
 
+  async function searchUsers(event) {
+    event.preventDefault();
+    setUsers(await onSearchUsers(userQuery));
+  }
+
   return (
     <Panel title="Community">
+      <form className="glass user-search" onSubmit={searchUsers}>
+        <label><Icon name="search" size={18} /><input value={userQuery} onChange={(event) => setUserQuery(event.target.value)} placeholder="Find athletes by name or username" required /></label>
+        <button className="secondary-btn" type="submit">Search</button>
+      </form>
+      {!!users.length && <section className="glass people-grid">
+        {users.map((user) => <article key={user._id}>
+          <div className="person-avatar">{user.profilePicture ? <img src={assetUrl(user.profilePicture)} alt="" /> : user.name?.slice(0, 1).toUpperCase()}</div>
+          <p><strong>{user.name}</strong><small>@{user.username}</small></p>
+        </article>)}
+      </section>}
       <form className="glass data-form feedback-form" onSubmit={submit}>
         <h3>Send feedback</h3>
         <label>Subject<input value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} required /></label>
@@ -638,11 +758,11 @@ function CommunityView({ feedback, notifications, reminders, onFeedback, onReadN
         <div className="glass side-list">
           <div className="subheading"><h3>Reminders</h3><button className="link-btn compact" onClick={onReminder}>Add</button></div>
           {reminders.length ? reminders.map((item) => (
-            <article key={item.id}>
+            <article key={item._id}>
               <p>{item.title}</p><small>{item.type} · {new Date(item.time).toLocaleString()}</small>
-              <div className="mini-actions"><button onClick={() => onDeleteReminder(item.id)}><Icon name="trash" size={16} />Delete</button></div>
+              <div className="mini-actions"><button onClick={() => onDeleteReminder(item._id)}><Icon name="trash" size={16} />Delete</button></div>
             </article>
-          )) : <EmptyState icon="clock" title="No reminders" text="Add workout, meal, or goal reminders stored on this device." />}
+          )) : <EmptyState icon="clock" title="No reminders" text="Add a workout, meal, or goal reminder and keep it synced with your account." />}
         </div>
       </section>
       {!!feedback.length && (
@@ -655,8 +775,137 @@ function CommunityView({ feedback, notifications, reminders, onFeedback, onReadN
   );
 }
 
-function SettingsView({ profile, onSave }) {
+function FeedComposer({ workouts, onSubmit }) {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [workoutId, setWorkoutId] = useState('');
+  const [tags, setTags] = useState('');
+  const [image, setImage] = useState(null);
+  const [preview, setPreview] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  function pickImage(event) {
+    const file = event.target.files?.[0] || null;
+    setImage(file);
+    setPreview(file ? URL.createObjectURL(file) : '');
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      await onSubmit({ title, body, workoutId, tags, image });
+      setTitle(''); setBody(''); setWorkoutId(''); setTags(''); setImage(null); setPreview('');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="glass feed-composer" onSubmit={submit}>
+      <h3>Share a workout</h3>
+      <input className="composer-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="What did you crush today?" required maxLength={160} />
+      <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder="Add details — how it felt, PRs, tips..." required maxLength={5000} />
+      {preview && (
+        <div className="composer-preview">
+          <img src={preview} alt="Selected workout" />
+          <button type="button" className="preview-remove" onClick={() => { setImage(null); setPreview(''); }} aria-label="Remove image"><Icon name="x" size={16} /></button>
+        </div>
+      )}
+      <div className="composer-row">
+        <select value={workoutId} onChange={(event) => setWorkoutId(event.target.value)}>
+          <option value="">Attach a workout (optional)</option>
+          {workouts.map((workout) => <option key={workout._id} value={workout._id}>{workout.name}</option>)}
+        </select>
+        <input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="tags: chest, pr" />
+      </div>
+      <div className="composer-actions">
+        <label className="secondary-btn image-picker">
+          <Icon name="image" size={18} />{image ? 'Change photo' : 'Add photo'}
+          <input type="file" accept="image/png,image/jpeg" onChange={pickImage} hidden />
+        </label>
+        <button className="primary-btn" type="submit" disabled={busy}><Icon name="plus" size={18} />{busy ? 'Posting...' : 'Post'}</button>
+      </div>
+    </form>
+  );
+}
+
+function FeedPost({ post, currentUser, onLike, onComment, onDelete }) {
+  const [showComments, setShowComments] = useState(false);
+  const [comment, setComment] = useState('');
+  const author = post.user || {};
+  const isMine = author._id === currentUser?._id;
+
+  function submitComment(event) {
+    event.preventDefault();
+    if (!comment.trim()) return;
+    onComment(post._id, comment.trim());
+    setComment('');
+    setShowComments(true);
+  }
+
+  return (
+    <article className="glass feed-post">
+      <header className="feed-head">
+        <div className="person-avatar">{author.profilePicture ? <img src={assetUrl(author.profilePicture)} alt="" /> : (author.name || '?').slice(0, 1).toUpperCase()}</div>
+        <div className="feed-meta">
+          <strong>{author.name || 'Athlete'}</strong>
+          <small>@{author.username || 'athlete'} · {relativeTime(post.createdAt)}</small>
+        </div>
+        {post.workoutSummary?.name && <span className="pill">{post.workoutSummary.name}</span>}
+        {isMine && <button className="feed-delete" onClick={() => onDelete(post._id)} aria-label="Delete post"><Icon name="trash" size={16} /></button>}
+      </header>
+      <h3 className="feed-title">{post.title}</h3>
+      <p className="feed-body">{post.body}</p>
+      {post.image && <div className="feed-image"><img src={assetUrl(post.image)} alt={post.title} loading="lazy" /></div>}
+      {!!(post.tags || []).length && <div className="tag-row">{post.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>}
+      <div className="feed-bar">
+        <button className={`feed-action ${post.likedByMe ? 'liked' : ''}`} onClick={() => onLike(post)}>
+          <Icon name="heart" size={20} /><span>{post.likeCount || 0}</span>
+        </button>
+        <button className="feed-action" onClick={() => setShowComments((open) => !open)}>
+          <Icon name="comment" size={20} /><span>{post.replyCount ?? (post.replies?.length || 0)}</span>
+        </button>
+      </div>
+      {showComments && (
+        <div className="feed-comments">
+          {(post.replies || []).map((reply) => (
+            <div className="feed-comment" key={reply._id || `${reply.user?._id}-${reply.createdAt}`}>
+              <div className="person-avatar small">{reply.user?.profilePicture ? <img src={assetUrl(reply.user.profilePicture)} alt="" /> : (reply.user?.name || '?').slice(0, 1).toUpperCase()}</div>
+              <p><strong>{reply.user?.name || 'Athlete'}</strong> {reply.message}</p>
+            </div>
+          ))}
+          <form className="feed-comment-form" onSubmit={submitComment}>
+            <input value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Add a comment" />
+            <button className="secondary-btn" type="submit"><Icon name="save" size={16} /></button>
+          </form>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function FeedView({ posts, workouts, currentUser, loading, hasMore, onCreate, onLike, onComment, onDelete, onLoadMore }) {
+  return (
+    <Panel title="Live Feed">
+      <FeedComposer workouts={workouts} onSubmit={onCreate} />
+      {posts.length ? (
+        <div className="feed-list">
+          {posts.map((post) => (
+            <FeedPost key={post._id} post={post} currentUser={currentUser} onLike={onLike} onComment={onComment} onDelete={onDelete} />
+          ))}
+          {hasMore && <button className="secondary-btn load-more" onClick={onLoadMore} disabled={loading}>{loading ? 'Loading...' : 'Load more'}</button>}
+        </div>
+      ) : (
+        <EmptyState icon="feed" title="No posts yet" text="Be the first to share a workout with the community." />
+      )}
+    </Panel>
+  );
+}
+
+function SettingsView({ profile, onSave, onSavePicture }) {
   const [form, setForm] = useState({
+    username: profile?.username || '',
     name: profile?.name || '',
     email: profile?.email || '',
     password: '',
@@ -664,10 +913,12 @@ function SettingsView({ profile, onSave }) {
     theme: profile?.preferences?.theme || 'dark',
     notificationsEnabled: profile?.preferences?.notificationsEnabled ?? true,
   });
+  const [picture, setPicture] = useState(null);
 
   function submit(event) {
     event.preventDefault();
     onSave({
+      username: form.username,
       name: form.name,
       email: form.email,
       ...(form.password ? { password: form.password } : {}),
@@ -683,6 +934,12 @@ function SettingsView({ profile, onSave }) {
     <Panel title="Settings">
       <form className="glass data-form" onSubmit={submit}>
         <h3>Profile and preferences</h3>
+        <div className="profile-editor">
+          <div className="profile-preview">{profile?.profilePicture ? <img src={assetUrl(profile.profilePicture)} alt={`${profile.name}'s profile`} /> : profile?.name?.slice(0, 1).toUpperCase()}</div>
+          <label>Profile picture<input type="file" accept="image/png,image/jpeg" onChange={(event) => setPicture(event.target.files?.[0] || null)} /></label>
+          <button className="secondary-btn" type="button" disabled={!picture} onClick={() => onSavePicture(picture)}>Upload</button>
+        </div>
+        <label>Username<input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })} required minLength="3" maxLength="30" /></label>
         <label>Name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
         <label>Email<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>
         <label>New password<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} placeholder="Leave blank to keep current" /></label>
@@ -724,15 +981,20 @@ function App() {
   const [progress, setProgress] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [feedback, setFeedback] = useState([]);
-  const [reminders, setReminders] = useState(() => loadJson(REMINDERS_KEY, []));
+  const [reminders, setReminders] = useState([]);
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [formType, setFormType] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [addMenu, setAddMenu] = useState(false);
   const [workoutSearch, setWorkoutSearch] = useState('');
   const [workoutCategory, setWorkoutCategory] = useState('');
   const [mealSearch, setMealSearch] = useState('');
   const [mealType, setMealType] = useState('');
+  const [feedPosts, setFeedPosts] = useState([]);
+  const [feedPage, setFeedPage] = useState(1);
+  const [feedHasMore, setFeedHasMore] = useState(false);
+  const [feedLoading, setFeedLoading] = useState(false);
 
   const token = auth?.token;
 
@@ -741,20 +1003,22 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    saveJson(REMINDERS_KEY, reminders);
-  }, [reminders]);
+    if (token && view === 'feed' && feedPosts.length === 0) loadFeed(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, view]);
 
   async function loadAll() {
     setLoading(true);
     setStatus('');
     try {
-      const [profileData, workoutData, nutritionData, progressData, notificationData, feedbackData] = await Promise.all([
+      const [profileData, workoutData, nutritionData, progressData, notificationData, feedbackData, reminderData] = await Promise.all([
         request('/users', { token }),
         request('/workouts', { token }),
         request('/nutrition', { token }),
         request('/progress', { token }),
         request('/notifications', { token }).catch(() => []),
         request('/feedback', { token }).catch(() => []),
+        request('/reminders', { token }),
       ]);
       setProfile(profileData);
       setWorkouts(workoutData);
@@ -762,7 +1026,12 @@ function App() {
       setProgress(progressData);
       setNotifications(notificationData);
       setFeedback(feedbackData);
+      setReminders(reminderData);
     } catch (error) {
+      if (error.status === 401) {
+        logout();
+        return;
+      }
       setStatus(`${error.message}. Check that the backend is running at ${API_BASE}.`);
     } finally {
       setLoading(false);
@@ -776,6 +1045,7 @@ function App() {
   }
 
   function openForm(type, item = null) {
+    setAddMenu(false);
     setEditing(item);
     setFormType(type);
   }
@@ -785,77 +1055,183 @@ function App() {
     setFormType(null);
   }
 
+  async function mutate(action, successMessage = '') {
+    setStatus('');
+    try {
+      await action();
+      if (successMessage) setStatus(successMessage);
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
   async function saveWorkout(payload) {
-    const path = editing?._id ? `/workouts/${editing._id}` : '/workouts';
-    const method = editing?._id ? 'PUT' : 'POST';
-    await request(path, { method, body: payload, token });
-    closeForm();
-    await loadAll();
+    await mutate(async () => {
+      const path = editing?._id ? `/workouts/${editing._id}` : '/workouts';
+      const method = editing?._id ? 'PUT' : 'POST';
+      await request(path, { method, body: payload, token });
+      closeForm();
+      await loadAll();
+    }, 'Workout saved.');
   }
 
   async function saveMeal(payload) {
-    const path = editing?._id ? `/nutrition/${editing._id}` : '/nutrition';
-    const method = editing?._id ? 'PUT' : 'POST';
-    await request(path, { method, body: payload, token });
-    closeForm();
-    await loadAll();
+    await mutate(async () => {
+      const path = editing?._id ? `/nutrition/${editing._id}` : '/nutrition';
+      const method = editing?._id ? 'PUT' : 'POST';
+      await request(path, { method, body: payload, token });
+      closeForm();
+      await loadAll();
+    }, 'Meal saved.');
   }
 
   async function saveProgress(payload) {
-    const path = editing?._id ? `/progress/${editing._id}` : '/progress';
-    const method = editing?._id ? 'PUT' : 'POST';
-    await request(path, { method, body: payload, token });
-    closeForm();
-    await loadAll();
+    await mutate(async () => {
+      const path = editing?._id ? `/progress/${editing._id}` : '/progress';
+      const method = editing?._id ? 'PUT' : 'POST';
+      await request(path, { method, body: payload, token });
+      closeForm();
+      await loadAll();
+    }, 'Progress saved.');
   }
 
   async function removeRecord(path) {
-    await request(path, { method: 'DELETE', token });
-    await loadAll();
+    await mutate(async () => {
+      await request(path, { method: 'DELETE', token });
+      await loadAll();
+    }, 'Record deleted.');
   }
 
   async function saveProfile(payload) {
-    const data = await request('/users', { method: 'PUT', body: payload, token });
-    setProfile(data);
-    setStatus('Profile updated.');
+    await mutate(async () => {
+      const data = await request('/users', { method: 'PUT', body: payload, token });
+      setProfile(data);
+    }, 'Profile updated.');
+  }
+
+  async function saveProfilePicture(file) {
+    if (!file) return;
+    await mutate(async () => {
+      const formData = new FormData();
+      formData.append('profilePicture', file);
+      const data = await request('/users/profile-picture', { method: 'PUT', body: formData, token });
+      setProfile(data);
+    }, 'Profile picture updated.');
   }
 
   async function submitFeedback(payload) {
-    await request('/feedback', { method: 'POST', body: payload, token });
-    await loadAll();
+    await mutate(async () => {
+      await request('/feedback', { method: 'POST', body: payload, token });
+      await loadAll();
+    }, 'Feedback sent.');
   }
 
   async function markNotificationRead(id) {
-    await request(`/notifications/${id}/read`, { method: 'PUT', token });
-    await loadAll();
+    await mutate(async () => {
+      await request(`/notifications/${id}/read`, { method: 'PUT', token });
+      await loadAll();
+    });
   }
 
   async function deleteNotification(id) {
-    await request(`/notifications/${id}`, { method: 'DELETE', token });
-    await loadAll();
+    await mutate(async () => {
+      await request(`/notifications/${id}`, { method: 'DELETE', token });
+      await loadAll();
+    });
   }
 
   async function exportCsv() {
-    const report = await request('/reports/csv', { token });
-    const rows = [['type', 'name', 'date', 'detail']];
-    report.data.workouts.forEach((item) => rows.push(['workout', item.name, item.date, item.category]));
-    report.data.nutrition.forEach((item) => rows.push(['nutrition', item.mealType, item.date, item.foods.map((food) => `${food.name} ${food.calories || 0}kcal`).join('; ')]));
-    report.data.progress.forEach((item) => rows.push(['progress', `${item.weight || 0}kg`, item.date, item.notes || '']));
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell || '').replace(/"/g, '""')}"`).join(',')).join('\n');
-    downloadFile('lyfta-report.csv', csv, 'text/csv');
+    await mutate(() => downloadReport('/reports/csv', 'fitness-tracker-report.csv', token));
   }
 
   async function exportPdf() {
-    const report = await request('/reports/pdf', { token });
-    const html = `<!doctype html><title>Lyfta Report</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111}h1{margin-top:0}section{margin:24px 0}li{margin:8px 0}</style><h1>Lyfta Fitness Report</h1><section><h2>Workouts</h2><ul>${report.data.workouts.map((item) => `<li>${item.name} - ${item.category}</li>`).join('')}</ul></section><section><h2>Nutrition</h2><ul>${report.data.nutrition.map((item) => `<li>${item.mealType}: ${item.foods.map((food) => food.name).join(', ')}</li>`).join('')}</ul></section><section><h2>Progress</h2><ul>${report.data.progress.map((item) => `<li>${item.weight || 0} kg - ${item.notes || ''}</li>`).join('')}</ul></section>`;
-    const popup = window.open('', '_blank');
-    if (popup) {
-      popup.document.write(html);
-      popup.document.close();
-      popup.print();
-    } else {
-      downloadFile('lyfta-report.html', html, 'text/html');
+    await mutate(() => downloadReport('/reports/pdf', 'fitness-tracker-report.pdf', token));
+  }
+
+  async function saveReminder(payload) {
+    await mutate(async () => {
+      await request('/reminders', { method: 'POST', body: payload, token });
+      closeForm();
+      await loadAll();
+    }, 'Reminder added.');
+  }
+
+  async function deleteReminder(id) {
+    await mutate(async () => {
+      await request(`/reminders/${id}`, { method: 'DELETE', token });
+      await loadAll();
+    });
+  }
+
+  async function searchUsers(query) {
+    try {
+      return await request(`/users/search?search=${encodeURIComponent(query)}`, { token });
+    } catch (error) {
+      setStatus(error.message);
+      return [];
     }
+  }
+
+  async function loadFeed(page = 1) {
+    setFeedLoading(true);
+    try {
+      const data = await request(`/forum?page=${page}&limit=10`, { token });
+      setFeedPosts((current) => (page === 1 ? data.items : [...current, ...data.items]));
+      setFeedPage(data.meta.page);
+      setFeedHasMore(data.meta.hasMore);
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setFeedLoading(false);
+    }
+  }
+
+  async function createPost({ title, body, workoutId, tags, image }) {
+    await mutate(async () => {
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('body', body);
+      if (workoutId) formData.append('workout', workoutId);
+      if (tags) formData.append('tags', tags);
+      if (image) formData.append('image', image);
+      await request('/forum', { method: 'POST', body: formData, token });
+      await loadFeed(1);
+    }, 'Posted to the feed.');
+  }
+
+  async function toggleLike(post) {
+    // Optimistic update, then reconcile with the server's authoritative counts.
+    setFeedPosts((current) => current.map((item) => item._id === post._id
+      ? { ...item, likedByMe: !item.likedByMe, likeCount: (item.likeCount || 0) + (item.likedByMe ? -1 : 1) }
+      : item));
+    try {
+      const data = await request(`/forum/${post._id}/like`, { method: 'POST', token });
+      setFeedPosts((current) => current.map((item) => item._id === post._id
+        ? { ...item, likedByMe: data.likedByMe, likeCount: data.likeCount }
+        : item));
+    } catch (error) {
+      setStatus(error.message);
+      await loadFeed(1);
+    }
+  }
+
+  async function commentOnPost(postId, message) {
+    try {
+      const updated = await request(`/forum/${postId}/replies`, { method: 'POST', body: { message }, token });
+      // Server returns the full post with populated replies; merge it in.
+      setFeedPosts((current) => current.map((item) => item._id === postId
+        ? { ...item, replies: updated.replies, replyCount: updated.replies.length }
+        : item));
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  async function deletePost(postId) {
+    await mutate(async () => {
+      await request(`/forum/${postId}`, { method: 'DELETE', token });
+      setFeedPosts((current) => current.filter((item) => item._id !== postId));
+    }, 'Post deleted.');
   }
 
   const filteredWorkouts = useMemo(() => workouts.filter((item) => {
@@ -872,8 +1248,11 @@ function App() {
   }), [nutrition, mealSearch, mealType]);
 
   const totals = useMemo(() => {
-    const calories = nutrition.reduce((sum, meal) => sum + (meal.foods || []).reduce((foodSum, food) => foodSum + num(food.calories), 0), 0);
-    const protein = nutrition.reduce((sum, meal) => sum + (meal.foods || []).reduce((foodSum, food) => foodSum + num(food.protein), 0), 0);
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const todayNutrition = nutrition.filter((meal) => new Date(meal.date) >= startOfToday);
+    const calories = todayNutrition.reduce((sum, meal) => sum + (meal.foods || []).reduce((foodSum, food) => foodSum + num(food.calories), 0), 0);
+    const protein = todayNutrition.reduce((sum, meal) => sum + (meal.foods || []).reduce((foodSum, food) => foodSum + num(food.protein), 0), 0);
     const latestWeight = progress[0]?.weight || 0;
     return { calories, protein, latestWeight, workouts: workouts.length, meals: nutrition.length, progress: progress.length };
   }, [nutrition, progress, workouts]);
@@ -882,6 +1261,7 @@ function App() {
     { label: 'Calories', value: totals.calories.toLocaleString(), target: '/ 2,200 kcal', icon: 'flame', color: 'pink', progress: (totals.calories / 2200) * 100 },
     { label: 'Workouts', value: String(totals.workouts), target: '/ routines', icon: 'dumbbell', color: 'lime', progress: Math.min(100, totals.workouts * 15) },
     { label: 'Weight', value: totals.latestWeight ? String(totals.latestWeight) : '--', target: 'kg latest', icon: 'scale', color: 'cyan', progress: totals.latestWeight ? 75 : 10 },
+    { label: 'Protein', value: `${Math.round(totals.protein)}`, target: 'g today', icon: 'utensils', color: 'amber', progress: Math.min(100, (totals.protein / 140) * 100) },
   ];
 
   if (!auth) return <AuthScreen onAuth={setAuth} />;
@@ -919,20 +1299,25 @@ function App() {
     liftingWeight: editing.performanceMetrics?.liftingWeight || '',
   };
 
+  const greetingHour = new Date().getHours();
+  const greeting = greetingHour < 12 ? 'Good Morning' : greetingHour < 18 ? 'Good Afternoon' : 'Good Evening';
+
   return (
-    <main className="phone">
+    <main className={`phone theme-${profile?.preferences?.theme || 'dark'}`}>
       <header className="topbar">
-        <button className="logo logo-button" onClick={() => setView('dashboard')}>Ly<span>fta</span></button>
+        <button className="logo logo-button" onClick={() => setView('dashboard')}>Fitness<span>Tracker</span></button>
         <nav className="top-icons" aria-label="Header actions">
-          <button onClick={() => setView('workout')}><Icon name="search" size={30} /></button>
-          <button className="notif" onClick={() => setView('community')}><Icon name="bell" size={28} /></button>
-          <button className="avatar" aria-label="Profile" onClick={() => setView('settings')}><span /></button>
-          <button onClick={logout}><Icon name="logout" size={26} /></button>
+          <button aria-label="Nutrition" onClick={() => setView('nutrition')}><Icon name="utensils" size={24} /></button>
+          <button className="notif" aria-label="Notifications" onClick={() => setView('community')}><Icon name="bell" size={24} /></button>
+          <button className="avatar" aria-label="Profile" onClick={() => setView('settings')}>
+            {profile?.profilePicture ? <img src={assetUrl(profile.profilePicture)} alt="" /> : <Icon name="user" size={22} />}
+          </button>
+          <button aria-label="Log out" onClick={logout}><Icon name="logout" size={24} /></button>
         </nav>
       </header>
 
       <section className="hero">
-        <h1>Good Night, {profile?.name || auth.name || 'Athlete'}</h1>
+        <h1>{greeting}, {profile?.name || auth.name || 'Athlete'}</h1>
         <p>Keep pushing your limits. Your dashboard is synced with the backend server.</p>
       </section>
 
@@ -943,40 +1328,46 @@ function App() {
       {view === 'workout' && <WorkoutView workouts={filteredWorkouts} onEdit={(item) => openForm('workout', item)} onDelete={(id) => removeRecord(`/workouts/${id}`)} onAdd={() => openForm('workout')} search={workoutSearch} setSearch={setWorkoutSearch} category={workoutCategory} setCategory={setWorkoutCategory} />}
       {view === 'nutrition' && <NutritionView nutrition={filteredNutrition} onEdit={(item) => openForm('meal', item)} onDelete={(id) => removeRecord(`/nutrition/${id}`)} onAdd={() => openForm('meal')} search={mealSearch} setSearch={setMealSearch} mealType={mealType} setMealType={setMealType} />}
       {view === 'progress' && <ProgressView progress={progress} onEdit={(item) => openForm('progress', item)} onDelete={(id) => removeRecord(`/progress/${id}`)} onAdd={() => openForm('progress')} />}
-      {view === 'reports' && <ReportsView onExportCsv={exportCsv} onExportPdf={exportPdf} totals={totals} />}
-      {view === 'community' && <CommunityView feedback={feedback} notifications={notifications} reminders={reminders} onFeedback={submitFeedback} onReadNotification={markNotificationRead} onDeleteNotification={deleteNotification} onDeleteReminder={(id) => setReminders(reminders.filter((item) => item.id !== id))} onReminder={() => openForm('reminder')} />}
-      {view === 'settings' && <SettingsView profile={profile || auth} onSave={saveProfile} />}
+      {view === 'reports' && <ReportsView onExportCsv={exportCsv} onExportPdf={exportPdf} totals={totals} workouts={workouts} nutrition={nutrition} />}
+      {view === 'community' && <CommunityView feedback={feedback} notifications={notifications} reminders={reminders} onFeedback={submitFeedback} onReadNotification={markNotificationRead} onDeleteNotification={deleteNotification} onDeleteReminder={deleteReminder} onReminder={() => openForm('reminder')} onSearchUsers={searchUsers} />}
+      {view === 'feed' && <FeedView posts={feedPosts} workouts={workouts} currentUser={profile || auth} loading={feedLoading} hasMore={feedHasMore} onCreate={createPost} onLike={toggleLike} onComment={commentOnPost} onDelete={deletePost} onLoadMore={() => loadFeed(feedPage + 1)} />}
+      {view === 'settings' && <SettingsView profile={profile || auth} onSave={saveProfile} onSavePicture={saveProfilePicture} />}
 
       {formType && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           {formType === 'workout' && <WorkoutForm initial={mappedWorkout} onCancel={closeForm} onSubmit={saveWorkout} />}
           {formType === 'meal' && <MealForm initial={mappedMeal} onCancel={closeForm} onSubmit={saveMeal} />}
           {formType === 'progress' && <ProgressForm initial={mappedProgress} onCancel={closeForm} onSubmit={saveProgress} />}
-          {formType === 'reminder' && <ReminderForm onCancel={closeForm} onSubmit={(item) => { setReminders([item, ...reminders]); closeForm(); }} />}
+          {formType === 'reminder' && <ReminderForm onCancel={closeForm} onSubmit={saveReminder} />}
         </div>
       )}
 
       <nav className="bottom-nav" aria-label="Primary navigation">
-        <svg className="nav-shape" viewBox="0 0 390 74" preserveAspectRatio="none" aria-hidden="true">
-          <defs>
-            <linearGradient id="navFill" x1="0" x2="0" y1="0" y2="1">
-              <stop stopColor="#11161c" />
-              <stop offset=".34" stopColor="#080b0f" />
-              <stop offset="1" stopColor="#080b0f" />
-            </linearGradient>
-          </defs>
-          <path className="nav-fill" d="M36 0 H143 C158 0 161 22 177 25 C186 27 204 27 213 25 C229 22 232 0 247 0 H354 C374 0 390 16 390 37 V74 H0 V37 C0 16 16 0 36 0 Z" />
-          <path className="nav-inner-highlight" d="M36 1 H143 C158 1 161 23 177 26 C186 28 204 28 213 26 C229 23 232 1 247 1 H354" />
-        </svg>
+        <div className="nav-surface" aria-hidden="true" />
         <div className="nav-items">
           <button className={`nav-item ${view === 'dashboard' ? 'active' : ''}`} onClick={() => setView('dashboard')}><Icon name="home" size={24} /><span>Home</span></button>
           <button className={`nav-item ${view === 'workout' ? 'active' : ''}`} onClick={() => setView('workout')}><Icon name="dumbbell" size={23} /><span>Workout</span></button>
-          <button className={`nav-item nav-center ${view === 'nutrition' ? 'active' : ''}`} onClick={() => setView('nutrition')}><span>Nutrition</span></button>
+          <button className={`nav-item nav-center ${view === 'feed' ? 'active' : ''}`} onClick={() => setView('feed')} aria-label="Live feed"><Icon name="feed" size={24} /><span>Feed</span></button>
           <button className={`nav-item ${view === 'progress' ? 'active' : ''}`} onClick={() => setView('progress')}><Icon name="progress" size={23} /><span>Progress</span></button>
           <button className={`nav-item ${view === 'community' ? 'active' : ''}`} onClick={() => setView('community')}><Icon name="community" size={23} /><span>Community</span></button>
         </div>
-        <button className="nav-add" aria-label="Add nutrition entry" onClick={() => openForm('meal')}><Icon name="plus" size={28} /></button>
+        <button className="nav-add" aria-label="Add new entry" aria-haspopup="true" aria-expanded={addMenu} onClick={() => setAddMenu((open) => !open)}><Icon name="plus" size={28} /></button>
       </nav>
+
+      {addMenu && (
+        <div className="add-menu-backdrop" role="dialog" aria-modal="true" aria-label="Add new entry" onClick={() => setAddMenu(false)}>
+          <div className="add-menu glass" onClick={(event) => event.stopPropagation()}>
+            <h3>What do you want to add?</h3>
+            <div className="add-menu-grid">
+              <button className="add-menu-item" onClick={() => openForm('workout')}><span className="lime"><Icon name="dumbbell" size={26} /></span><b>Workout</b></button>
+              <button className="add-menu-item" onClick={() => openForm('meal')}><span className="pink"><Icon name="utensils" size={26} /></span><b>Meal</b></button>
+              <button className="add-menu-item" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" size={26} /></span><b>Weight</b></button>
+              <button className="add-menu-item" onClick={() => openForm('reminder')}><span className="amber"><Icon name="bell" size={26} /></span><b>Reminder</b></button>
+            </div>
+            <button className="secondary-btn add-menu-cancel" onClick={() => setAddMenu(false)}><Icon name="x" size={18} />Cancel</button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

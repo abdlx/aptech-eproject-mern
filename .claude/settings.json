@@ -1,0 +1,47 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite *)",
+      "Skill(artifact-design)",
+      "Skill(artifact-design:*)",
+      "Bash(node migrations/runner.js status)",
+      "Bash(nslookup -type=SRV _mongodb._tcp.cluster0.pd7by8b.mongodb.net)",
+      "Bash(echo \"=== EXIT: $? ===\")",
+      "Bash(nslookup google.com)",
+      "Bash(echo \"=== general DNS exit: $? ===\")",
+      "Bash(node -e \"const dns=require\\('dns'\\); console.log\\('servers:', dns.getServers\\(\\)\\); dns.resolveSrv\\('_mongodb._tcp.cluster0.pd7by8b.mongodb.net',\\(e,r\\)=>{ if\\(e\\){console.log\\('SRV ERROR:', e.code, e.message\\)} else {console.log\\('SRV OK:', r.length, 'records'\\)} }\\);\")",
+      "Bash(node -e \"const dns=require\\('dns'\\); dns.setServers\\(['8.8.8.8','1.1.1.1']\\); dns.resolveSrv\\('_mongodb._tcp.cluster0.pd7by8b.mongodb.net',\\(e,r\\)=>{ if\\(e\\){console.log\\('STILL FAILS:', e.code\\)} else {console.log\\('SRV OK with 8.8.8.8:', r.length, 'records ->', r.map\\(x=>x.name\\).join\\(', '\\)\\)} }\\);\")",
+      "Bash(node migrations/runner.js up)",
+      "Bash(node -e ' *)",
+      "Bash(taskkill //F //IM node.exe //T)",
+      "Bash(node server.js)",
+      "Read(//tmp/**)",
+      "Bash(break)",
+      "Bash(curl -s -i -X POST http://localhost:5000/api/auth/register -H 'Content-Type: application/json' -d '{\"username\":\"__TRACKED_VAR__\",\"name\":\"Audit User\",\"email\":\"__TRACKED_VAR__@test.com\",\"password\":\"secret123\"}')",
+      "Bash(rm -f /tmp/lyfta_server.log /tmp/lyfta_server2.log /tmp/lyfta_pid)",
+      "Bash(npm install *)",
+      "Bash(timeout 60 npm run migrate)",
+      "Bash(DISABLE_SCHEDULER=true timeout 120 node --test tests/)",
+      "Bash(DISABLE_SCHEDULER=true timeout 120 node --test \"tests/api.test.js\")",
+      "Bash(DISABLE_SCHEDULER=true DISABLE_RATE_LIMIT=true timeout 120 node --test \"tests/api.test.js\")",
+      "Bash(rm -f /tmp/lyfta_final.log 2>/dev/null; echo \"cleaned\")",
+      "Bash(node -e 'import\\('\\\\''mongoose'\\\\''\\).then\\(async m=>{await m.default.connect\\(process.env.MONGO_URI,{dbName:'\\\\''lyfta'\\\\''}\\);const db=m.default.connection;const r1=await db.collection\\('\\\\''forumposts'\\\\''\\).deleteMany\\({}\\);const r2=await db.collection\\('\\\\''users'\\\\''\\).deleteMany\\({email:/@test\\\\.com$|@example\\\\.com$/}\\);const r3=await db.collection\\('\\\\''workouts'\\\\''\\).deleteMany\\({name:{$in:['\\\\''Chest Day'\\\\'','\\\\''Push'\\\\'','\\\\''Push Day'\\\\'','\\\\''W0'\\\\'','\\\\''W1'\\\\'','\\\\''W2'\\\\'','\\\\''X'\\\\'']}}\\);console.log\\('\\\\''removed forumposts:'\\\\'',r1.deletedCount,'\\\\''| test users:'\\\\'',r2.deletedCount,'\\\\''| stray workouts:'\\\\'',r3.deletedCount\\);await m.default.disconnect\\(\\)}\\)')",
+      "Bash(sed -i 's/\"lyfta-server\"/\"fitness-tracker-server\"/g' server/package-lock.json)",
+      "Bash(sed -i 's/\"lyfta-frontend\"/\"fitness-tracker-frontend\"/g' frontend/package-lock.json)",
+      "Read(//c/Users/Abdullah/Downloads/**)",
+      "Bash(timeout 60 npm run migrate:status)",
+      "Bash(DISABLE_SCHEDULER=true node server.js)",
+      "Bash(curl -s http://localhost:5000/api/health)",
+      "Bash(cat)",
+      "Bash(node ./_precheck.mjs)",
+      "Bash(rm -f ./_precheck.mjs)",
+      "Bash(node ./_drop.mjs)",
+      "Bash(rm -f ./_drop.mjs)",
+      "Bash(node ./_status.mjs)",
+      "Bash(rm -f ./_status.mjs)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}
