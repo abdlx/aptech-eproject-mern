@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -a d:/code/aptech-assignment/Epro_MERN/frontend/ && ls -a d:/code/aptech-assignment/Epro_MERN/)",
+      "Read(//d/code/aptech-assignment/Epro_MERN/**)",
+      "Bash(npm -v)",
+      "Bash(npm ls *)",
+      "Bash(rm -f package-lock.json)",
+      "Bash(npx -y npm@10.9.0 install --package-lock-only --no-audit --no-fund)",
+      "Bash(rm -rf C:/Users/Abdullah/AppData/Local/Temp/claude/d--code-aptech-assignment-Epro-MERN-frontend/002f87d4-ad5f-4200-84c9-8cde6b2f6633/scratchpad/lockgen)",
+      "Bash(mkdir -p C:/Users/Abdullah/AppData/Local/Temp/claude/d--code-aptech-assignment-Epro-MERN-frontend/002f87d4-ad5f-4200-84c9-8cde6b2f6633/scratchpad/lockgen)",
+      "Bash(cp d:/code/aptech-assignment/Epro_MERN/frontend/package.json C:/Users/Abdullah/AppData/Local/Temp/claude/d--code-aptech-assignment-Epro-MERN-frontend/002f87d4-ad5f-4200-84c9-8cde6b2f6633/scratchpad/lockgen/)",
+      "Bash(npx -y npm@10.9.0 ci --dry-run --no-audit --no-fund)",
+      "Bash(cp C:/Users/Abdullah/AppData/Local/Temp/claude/d--code-aptech-assignment-Epro-MERN-frontend/002f87d4-ad5f-4200-84c9-8cde6b2f6633/scratchpad/lockgen/package-lock.json d:/code/aptech-assignment/Epro_MERN/frontend/package-lock.json)",
+      "Bash(npm ci *)",
+      "Bash(npm run *)"
+    ]
+  }
+}
