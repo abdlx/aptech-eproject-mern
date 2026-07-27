@@ -157,7 +157,7 @@ function AuthScreen({ onAuth }) {
     return (
       <main className="auth-shell">
         <section className="auth-card glass">
-          <div className="logo auth-logo">Fitness<span>Tracker</span></div>
+          <div className="logo auth-logo">Fit<span>Track</span></div>
           <h1>Verify your email</h1>
           <p>We&rsquo;d normally email a verification link to <strong>{pendingUser?.email}</strong>. This app doesn&rsquo;t send real email, so you can verify right now instead.</p>
           {status && <p className="form-error">{status}</p>}
@@ -174,7 +174,7 @@ function AuthScreen({ onAuth }) {
     return (
       <main className="auth-shell">
         <section className="auth-card glass">
-          <div className="logo auth-logo">Fitness<span>Tracker</span></div>
+          <div className="logo auth-logo">Fit<span>Track</span></div>
           <h1>Reset your password</h1>
           <p>Enter the email on your account and we&rsquo;ll start a password reset.</p>
           <form className="form-grid" onSubmit={submitForgot}>
@@ -192,7 +192,7 @@ function AuthScreen({ onAuth }) {
     return (
       <main className="auth-shell">
         <section className="auth-card glass">
-          <div className="logo auth-logo">Fitness<span>Tracker</span></div>
+          <div className="logo auth-logo">Fit<span>Track</span></div>
           <h1>Set a new password</h1>
           {notice && <p className="form-hint">{notice}</p>}
           <form className="form-grid" onSubmit={submitReset}>
@@ -210,7 +210,7 @@ function AuthScreen({ onAuth }) {
   return (
     <main className="auth-shell">
       <section className="auth-card glass">
-        <div className="logo auth-logo">Fitness<span>Tracker</span></div>
+        <div className="logo auth-logo">Fit<span>Track</span></div>
         <h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
         <p>Connect to the fitness server to track workouts, meals, progress, reports, and reminders.</p>
         {notice && <p className="form-hint">{notice}</p>}
@@ -730,7 +730,7 @@ function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, g
         <button className="glass action" onClick={() => openForm('meal')}><span className="pink"><Icon name="utensils" /></span><b>Log</b><b>Meal</b></button>
         <button className="glass action" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" /></span><b>Update</b><b>Weight</b></button>
         <button className="glass action" onClick={() => setView('goals')}><span className="cyan"><Icon name="chartPie" /></span><b>Set</b><b>Goal</b></button>
-        <button className="glass action" onClick={() => setView('reports')}><span className="amber"><Icon name="chartPie" /></span><b>View</b><b>Reports</b></button>
+        <button className="glass action" onClick={() => setView('feed')}><span className="amber"><Icon name="feed" /></span><b>View</b><b>Feed</b></button>
       </section>
       <SectionTitle title="Recent Activity" action="View All" onAction={() => setView('workout')} />
       <section className="glass activity-list">
@@ -1824,7 +1824,7 @@ function App() {
   return (
     <main className={`phone theme-${profile?.preferences?.theme || 'dark'}`}>
       <header className="topbar">
-        <button className="logo logo-button" onClick={() => setView('dashboard')}>Fitness<span>Tracker</span></button>
+        <button className="logo logo-button" onClick={() => setView('dashboard')}>Fit<span>Track</span></button>
         <nav className="top-icons" aria-label="Header actions">
           <button aria-label="Nutrition" onClick={() => setView('nutrition')}><Icon name="utensils" size={24} /></button>
           <button className="notif" aria-label="Notifications" onClick={() => setView('community')}><Icon name="bell" size={24} /></button>
@@ -1940,7 +1940,9 @@ function App() {
             <span>{activeWorkout ? 'Live' : 'Routines'}</span>
             {activeWorkout && <i className="nav-dot" aria-hidden="true" />}
           </button>
-          <button className={`nav-item nav-center ${view === 'feed' ? 'active' : ''}`} onClick={() => setView('feed')} aria-label="Live feed"><Icon name="feed" size={24} /><span>Feed</span></button>
+          {/* Empty on purpose — reserves the grid's center column so the floating
+              add button still sits in the bar's notch, dead center. */}
+          <div className="nav-item nav-center" aria-hidden="true" />
           <button className={`nav-item ${view === 'nutrition' ? 'active' : ''}`} onClick={() => setView('nutrition')}><Icon name="utensils" size={23} /><span>Food</span></button>
           <button className={`nav-item ${view === 'progress' ? 'active' : ''}`} onClick={() => setView('progress')}><Icon name="progress" size={23} /><span>Progress</span></button>
         </div>
