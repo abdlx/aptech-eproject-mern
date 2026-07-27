@@ -40,6 +40,21 @@ This document records who wrote what in the Fitness Tracker project.
 | `utils/pagination.js` | Shared pagination helpers |
 | `utils/tokens.js` | Hashed token generation (verify / reset) |
 | `tests/api.test.js` | Integration test suite (13 tests) |
+| `services/nutritionMath.js` | Unit→gram conversion, per-100 scaling, macro/calorie reconciliation |
+| `services/workoutMath.js` | Set-log volume, completion counts, session summaries |
+| `services/targetService.js` | BMR/TDEE (Mifflin-St Jeor) → per-user calorie & macro targets |
+| `models/Food.js` | Food reference table (per-100 macros, serving sizes, private/global) |
+| `models/Routine.js` | Reusable workout template |
+| `controllers/foodController.js` | Food search, custom foods, portion preview |
+| `controllers/routineController.js` | Routine CRUD + start-session |
+| `routes/foodRoutes.js` | `/api/foods` |
+| `routes/routineRoutes.js` | `/api/routines` |
+| `data/seedFoods.js` | 58-item starter food table |
+| `migrations/011_create_foods.js` | Foods collection + search indexes |
+| `migrations/012_seed_foods.js` | Seeds the global food table (idempotent upsert) |
+| `migrations/013_create_routines.js` | Routines collection |
+| `migrations/014_backfill_totals.js` | Backfills meal totals + workout summaries on existing records |
+| `tests/tracking.test.js` | Integration tests for the calculation layer (11 tests) |
 
 ### Modified by Abdullah (Munawwar's originals, extended)
 
@@ -52,7 +67,14 @@ This document records who wrote what in the Fitness Tracker project.
 | `controllers/progressController.js` | notify() service, goal checks, pagination |
 | `controllers/userController.js` | (import wiring for follow routes) |
 | `middleware/uploadMiddleware.js` | Refactored into a factory; added `postUpload` (/uploads/posts) |
-| `models/User.js` | Added role, email-verification, password-reset, followers/following fields |
+| `models/User.js` | Added role, email-verification, password-reset, followers/following fields; `bodyStats` + `nutritionTargets` |
+| `models/Workout.js` | Turned into a trackable session: routine link, status, timing, per-set `setLog`, denormalised `summary` |
+| `models/Nutrition.js` | Food-table references, resolved per-entry macros, stored `totals` |
+| `models/Goal.js` | Value metrics (calories/protein/volume/sessions) and `period` windows |
+| `services/goalService.js` | Measures values not just record counts; period windows; fixed the write-source → metric mapping |
+| `controllers/reportController.js` | Reads stored totals/summaries; adds a headline summary and macro/volume columns |
+| `routes/workoutRoutes.js` | `/active`, `/:id/complete`, per-set logging routes |
+| `routes/nutritionRoutes.js` | `/summary` daily rollup |
 | `models/Feedback.js` | Added adminReply / repliedBy / repliedAt fields |
 | `routes/authRoutes.js` | New auth endpoints + rate limiter |
 | `routes/feedbackRoutes.js` | Admin-only feedback routes |
@@ -79,8 +101,13 @@ This document records who wrote what in the Fitness Tracker project.
 
 | File | Attribution |
 |------|-------------|
-| `main.jsx` | **Munawwar** (whole app). **Abdullah** added the Live Feed: `FeedComposer`, `FeedPost`, `FeedView`, feed state/data functions, feed/heart/comment/image icons, and nav wiring. |
-| `styles.css` | **Munawwar** (whole stylesheet). **Abdullah** added the `Live Feed` style block at the end. |
+| `main.jsx` | **Munawwar** (whole app). **Abdullah** added the Live Feed (`FeedComposer`, `FeedPost`, `FeedView`, feed state/data functions, nav wiring); replaced the single-entry workout/meal forms with multi-row editors; added routine/session state and handlers, real per-user targets, and the daily macro panel. |
+| `styles.css` | **Munawwar** (whole stylesheet). **Abdullah** added the `Live Feed` block and the `Food picker, routines & live sessions` block at the end. |
+| `lib/calc.js` | **Abdullah** — client mirror of the server maths; replaced five duplicated inline calorie `reduce`s. |
+| `lib/api.js` | **Munawwar**'s fetch helpers, extracted from `main.jsx` by **Abdullah** so feature modules share them. |
+| `components/Icon.jsx` | **Munawwar**'s icon set, extracted by **Abdullah**, who added the routine/session icons. |
+| `features/MealForm.jsx` | **Abdullah** — food-table type-ahead, multi-row meal editor, live portion scaling. |
+| `features/Routines.jsx` | **Abdullah** — routine builder, routine list, live session tracker with per-set ticking and rest timer. |
 
 ---
 
@@ -90,7 +117,27 @@ This document records who wrote what in the Fitness Tracker project.
 workouts, nutrition, progress, reminders, notifications, feedback, reports (CSV/PDF),
 dashboard, migrations framework, and the entire original React UI.
 
-**Abdullah (this session):** reminder scheduler, goals, followers, forum (posts +
+**Abdullah (session one):** reminder scheduler, goals, followers, forum (posts +
 replies + likes + workout-photo posts), notification delivery layer, auth rate
 limiting, password reset, email verification, refresh tokens + logout, pagination,
 admin feedback replies, an integration test suite, and the frontend **Live Feed**.
+
+**Abdullah (session two) — the tracking/calculation layer.** The app previously
+stored fitness data but never calculated anything: calories were whatever number
+the user typed, the `quantity`/`unit` fields were saved and then ignored, workouts
+could only be logged after the fact one exercise at a time, and "nutrition goals"
+counted log entries rather than calories. This session added:
+
+- **A food reference table** (58 seeded foods) with per-100 macros and serving
+  sizes, a search API, and user-created private foods.
+- **Real portion maths** — unit→gram conversion, per-100 scaling, and Atwater
+  (4/4/9) reconciliation so the macro donut and the calorie ring agree.
+- **Routines and live sessions** — reusable templates that can be started,
+  tracked set by set with a rest timer, and completed, producing volume and
+  completion figures.
+- **Multi-item forms** — meals and workouts now write the full arrays their
+  schemas always supported instead of a hardcoded single element.
+- **Per-user targets** derived from body stats via Mifflin-St Jeor, replacing the
+  hardcoded 2,200 kcal / 140 g.
+- **Value-based goals** over daily/weekly/monthly windows, plus a fix for weight
+  goals never firing (the write source was passed where a metric name was expected).

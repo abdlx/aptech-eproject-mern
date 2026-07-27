@@ -540,17 +540,19 @@ button {
   padding-top: 2px;
 }
 
-/* --- Quick actions: five buttons wrap into a tidy grid.
-   3-up on wide, 2-up on phones (never a single column). --- */
+/* --- Quick actions: five buttons, always on a single row.
+   The columns never re-flow; instead the buttons, icons, gaps and labels all
+   scale down together so the row still fits on the narrowest phone. --- */
 .actions {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--gap);
+  /* Tighter than --gap: five columns leave little room for spacing. */
+  gap: clamp(4px, 1.4vw, 20px);
 }
 
 .action {
   min-width: 0;
-  height: clamp(104px, 26vw, 156px);
+  height: clamp(78px, 21vw, 156px);
   border-radius: var(--radius);
   border: 1px solid rgba(255, 255, 255, .10);
   display: flex;
@@ -558,26 +560,28 @@ button {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  padding: clamp(8px, 2vw, 14px);
+  padding: clamp(3px, 1.2vw, 14px);
   text-align: center;
+  /* A label can never push the button wider than its column. */
+  overflow: hidden;
   background: linear-gradient(135deg, rgba(31, 34, 39, .86), rgba(17, 19, 22, .78));
 }
 
 .action span {
-  height: clamp(38px, 10vw, 55px);
+  height: clamp(26px, 8vw, 55px);
   display: grid;
   place-items: center;
 }
 
 .action span svg {
-  width: clamp(20px, 5vw, 26px);
-  height: clamp(20px, 5vw, 26px);
+  width: clamp(16px, 4.2vw, 26px);
+  height: clamp(16px, 4.2vw, 26px);
 }
 
 .action .featured-action {
-  width: clamp(34px, 8vw, 43px);
-  height: clamp(34px, 8vw, 43px);
-  margin-bottom: clamp(6px, 1.6vw, 10px);
+  width: clamp(26px, 6.6vw, 43px);
+  height: clamp(26px, 6.6vw, 43px);
+  margin-bottom: clamp(3px, 1.2vw, 10px);
   color: #030405;
   background: var(--lime);
   border-radius: 50%;
@@ -585,9 +589,13 @@ button {
 }
 
 .action b {
-  font-size: clamp(13px, 3.2vw, 20px);
-  line-height: 1.09;
+  /* Scales with viewport so the longest label ("Routine", "Workout") still
+     fits a fifth of the row rather than wrapping or clipping. */
+  font-size: clamp(8px, 2.1vw, 20px);
+  line-height: 1.12;
   font-weight: 500;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .activity-list {
@@ -1753,12 +1761,9 @@ textarea:focus {
     bottom: max(8px, env(safe-area-inset-bottom));
   }
 
-  /* Stats and quick actions drop to two columns and hold there. */
+  /* Stats drop to two columns and hold there. Quick actions deliberately do
+     not — they stay on one row at every width. */
   .stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1809,12 +1814,9 @@ textarea:focus {
     transform: none;
   }
 
-  /* Keep every grid at two columns — the 2x2 layout requirement. */
+  /* Keep every grid at two columns — the 2x2 layout requirement. Quick
+     actions are the exception: they hold their single five-up row. */
   .stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2126,4 +2128,741 @@ textarea:focus {
   .composer-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* ==========================================================================
+   Food picker, routines & live sessions
+   Author: Abdullah — added alongside the calculation layer (food-table meal
+   logging, routine templates, and set-by-set workout tracking).
+   ========================================================================== */
+
+/* --- Food search / meal editor ------------------------------------------ */
+
+.food-search {
+  position: relative;
+}
+
+.food-search > label {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .04);
+}
+
+.food-search > label input {
+  border: 0;
+  background: none;
+  color: inherit;
+  width: 100%;
+  outline: none;
+  font-size: .95rem;
+}
+
+.food-results {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #0b0d10;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .55);
+}
+
+.food-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--gap-sm);
+  width: 100%;
+  padding: 11px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.food-result:hover,
+.food-result:focus-visible {
+  background: rgba(183, 255, 0, .09);
+}
+
+.food-result-name {
+  font-size: .92rem;
+}
+
+.food-result-name small,
+.food-result-macros small {
+  color: var(--muted);
+}
+
+.food-result-macros {
+  flex-shrink: 0;
+  font-size: .85rem;
+  color: var(--lime);
+}
+
+.food-result-custom {
+  justify-content: flex-start;
+  color: var(--muted);
+  border-bottom: 0;
+}
+
+.food-hint {
+  padding: 8px 14px;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.food-rows {
+  display: grid;
+  gap: var(--gap-sm);
+}
+
+.food-row {
+  padding: var(--gap-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .03);
+}
+
+.food-row.linked {
+  border-left: 3px solid var(--lime);
+}
+
+.food-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  margin-bottom: 8px;
+}
+
+.food-row-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: .95rem;
+}
+
+.food-row-name svg {
+  color: var(--lime);
+}
+
+.food-row-name small {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.food-row-name-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .04);
+  color: inherit;
+}
+
+.food-row-remove,
+.exercise-row-tools button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.food-row-remove:hover,
+.exercise-row-tools button:hover:not(:disabled) {
+  color: var(--pink);
+  border-color: var(--pink);
+}
+
+.exercise-row-tools button:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+.food-row-qty {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+.food-row-qty label {
+  flex: 1 1 90px;
+}
+
+.food-row-grams {
+  padding-bottom: 10px;
+  font-size: .85rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.food-row-computed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  font-size: .87rem;
+  color: var(--muted);
+}
+
+.food-row-computed .kcal {
+  color: var(--lime);
+  font-weight: 700;
+}
+
+.food-row-warn {
+  margin-top: 8px;
+  font-size: .82rem;
+  color: var(--amber);
+}
+
+.meal-totals {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--gap-sm);
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(183, 255, 0, .08);
+  border: 1px solid rgba(183, 255, 0, .22);
+}
+
+.meal-totals strong {
+  font-size: 1.25rem;
+  color: var(--lime);
+}
+
+.meal-totals span,
+.meal-totals small {
+  font-size: .87rem;
+  color: var(--muted);
+}
+
+.add-row {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meal-kcal {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--lime);
+}
+
+.meal-foods {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meal-foods li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  font-size: .84rem;
+}
+
+.meal-foods small {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* --- Daily macro targets ------------------------------------------------- */
+
+.macro-targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--gap);
+  padding: var(--pad-card);
+}
+
+.macro-target p {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.macro-target span {
+  text-transform: capitalize;
+  font-size: .85rem;
+  color: var(--muted);
+}
+
+.macro-target strong {
+  font-size: 1.05rem;
+}
+
+.macro-target strong small {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.macro-target > small {
+  display: block;
+  margin-top: 5px;
+  font-size: .78rem;
+  color: var(--muted);
+}
+
+.macro-target > small.over {
+  color: var(--pink);
+}
+
+.target-hint {
+  grid-column: 1 / -1;
+  font-size: .84rem;
+  color: var(--muted);
+}
+
+/* --- Routines ------------------------------------------------------------ */
+
+.routine-desc {
+  font-size: .87rem;
+  color: var(--muted);
+}
+
+.routine-exercises {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routine-exercises li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  font-size: .85rem;
+}
+
+.routine-exercises small {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.routine-exercises .more {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.routine-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  margin: 8px 0;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.routine-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.card-actions .start-btn {
+  color: #06120a;
+  background: var(--lime);
+  border-color: var(--lime);
+  font-weight: 700;
+}
+
+.card-actions .start-btn:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.exercise-rows {
+  display: grid;
+  gap: var(--gap-sm);
+}
+
+.exercise-row {
+  padding: var(--gap-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, .03);
+}
+
+.exercise-row-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  margin-bottom: 8px;
+}
+
+.exercise-row-head input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .04);
+  color: inherit;
+}
+
+.exercise-index {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(183, 255, 0, .16);
+  color: var(--lime);
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.exercise-row-tools {
+  display: flex;
+  gap: 4px;
+}
+
+/* --- Active session ------------------------------------------------------ */
+
+.active-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: var(--pad-card);
+  margin-bottom: var(--gap);
+  border-left: 3px solid var(--lime);
+}
+
+.active-banner small {
+  color: var(--lime);
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.active-banner p {
+  font-size: .85rem;
+  color: var(--muted);
+}
+
+.active-banner .primary-btn {
+  flex-shrink: 0;
+}
+
+.session-header {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+  padding: var(--pad-card);
+}
+
+.session-stat small {
+  display: block;
+  font-size: .76rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.session-stat strong {
+  font-size: 1.3rem;
+}
+
+.session-meter {
+  grid-column: 1 / -1;
+}
+
+.rest-timer {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  margin: var(--gap) 0;
+  padding: 10px 14px;
+  border: 1px solid rgba(36, 201, 243, .3);
+  border-radius: var(--radius-sm);
+  background: rgba(36, 201, 243, .1);
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+.rest-timer button {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.session-exercises {
+  display: grid;
+  gap: var(--gap);
+  margin-top: var(--gap);
+}
+
+.session-exercise {
+  padding: var(--pad-card);
+}
+
+.session-exercise.done {
+  border-left: 3px solid var(--lime);
+}
+
+.session-exercise header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+  margin-bottom: 10px;
+}
+
+.exercise-note {
+  margin-bottom: 8px;
+  font-size: .83rem;
+  color: var(--muted);
+}
+
+.set-list {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.set-head,
+.set-row {
+  display: grid;
+  grid-template-columns: 40px 1fr 1fr 52px;
+  gap: var(--gap-sm);
+  align-items: center;
+}
+
+.set-head span {
+  font-size: .74rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.set-row input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .04);
+  color: inherit;
+  text-align: center;
+}
+
+.set-row.completed input {
+  opacity: .6;
+}
+
+.set-number {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .07);
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+.set-row.completed .set-number {
+  background: rgba(183, 255, 0, .18);
+  color: var(--lime);
+}
+
+.set-tick {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.set-tick.on {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #06120a;
+}
+
+.session-actions {
+  display: flex;
+  gap: var(--gap-sm);
+  margin: var(--gap) 0 calc(var(--gap) * 4);
+}
+
+.session-actions button {
+  flex: 1;
+  justify-content: center;
+}
+
+.workout-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  margin: 6px 0 8px;
+  font-size: .82rem;
+  color: var(--muted);
+}
+
+.workout-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pill.muted {
+  background: rgba(255, 255, 255, .08);
+  color: var(--muted);
+}
+
+.nav-dot {
+  position: absolute;
+  top: 6px;
+  right: calc(50% - 14px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lime);
+}
+
+@media (max-width: 480px) {
+  .session-header {
+    gap: var(--gap-sm);
+  }
+
+  .session-stat strong {
+    font-size: 1.05rem;
+  }
+
+  .set-head,
+  .set-row {
+    grid-template-columns: 32px 1fr 1fr 46px;
+  }
+
+  .food-row-qty label {
+    flex: 1 1 70px;
+  }
+}
+
+
+/* --- Nutrition breakdown modal ------------------------------------------
+   The Calories and Protein stat cards open today's consumed-vs-target
+   breakdown, rather than it occupying the dashboard permanently. */
+
+.stat-card-action {
+  /* The card is a <button> when it opens the modal — strip the UA styling so
+     it renders identically to the plain <section> variant. */
+  width: 100%;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.stat-card-action:hover {
+  transform: translateY(-2px);
+}
+
+.stat-card-action:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 3px;
+}
+
+.stat-card-action:active {
+  transform: translateY(0);
+}
+
+.nutrition-modal {
+  display: grid;
+  gap: var(--gap);
+  width: min(520px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+
+.nutrition-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+}
+
+.nutrition-modal-head h3 {
+  margin: 0;
+}
+
+.nutrition-modal .macro-targets {
+  padding: 0;
+}
+
+.meal-breakdown {
+  display: grid;
+  gap: 6px;
+  padding-top: var(--gap-sm);
+  border-top: 1px solid var(--line);
+}
+
+.meal-breakdown p {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: var(--gap-sm);
+  font-size: .88rem;
+}
+
+.meal-breakdown p span {
+  text-transform: capitalize;
+  color: var(--muted);
+}
+
+.meal-breakdown p strong {
+  color: var(--lime);
+}
+
+.meal-breakdown p small {
+  min-width: 72px;
+  text-align: right;
+  color: var(--muted);
+  font-size: .78rem;
+}
+
+.meal-breakdown p.empty strong {
+  color: var(--muted);
 }

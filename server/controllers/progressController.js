@@ -50,6 +50,9 @@ export const createProgress = async (req, res) => {
       type: 'progress'
     });
 
+    // 'progress' is the write source; goalService maps it to the 'weight'
+    // metric. It used to be passed straight through as a metric name, which
+    // matched no goal, so weight goals were never auto-achieved.
     await checkGoalsForUser(req.user._id, 'progress');
 
     res.status(201).json(progress);

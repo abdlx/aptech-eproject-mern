@@ -16,7 +16,29 @@
       "Bash(npm run *)",
       "Bash(git -C .. show HEAD:frontend/package-lock.json)",
       "Bash(npm view *)",
-      "Bash(rm -rf node_modules)"
+      "Bash(rm -rf node_modules)",
+      "Bash(curl -sS -o /dev/null -D - -L --max-redirs 5 https://fitness-tracker.idkwihl.site/)",
+      "Bash(curl -sS -o /dev/null -D - -L --max-redirs 5 https://fitness-tracker-api.idkwihl.site/)",
+      "Bash(curl -sS -o /dev/null -D - --max-redirs 0 http://fitness-tracker-api.idkwihl.site/)",
+      "Bash(cd /d/code/aptech-assignment/Epro_MERN && ls -la && echo \"--- frontend ---\" && ls -la frontend | head -40)",
+      "Bash(curl -sS --max-redirs 0 https://fitness-tracker-api.idkwihl.site/)",
+      "Bash(xxd)",
+      "Bash(curl -sS -o /dev/null -D - --max-redirs 0 \"https://fitness-tracker-api.idkwihl.site/api/health\")",
+      "Bash(nslookup fitness-tracker.idkwihl.site 1.1.1.1)",
+      "Bash(cd /d/code/aptech-assignment/Epro_MERN && echo \"=== docker-compose.yml ===\" && cat docker-compose.yml && echo && echo \"=== frontend/.env ===\" && cat frontend/.env && echo \"=== frontend/vite.config.js ===\" && cat frontend/vite.config.js && echo \"=== frontend/package.json ===\" && cat frontend/package.json)",
+      "Bash(curl -sS -H 'Authorization: Bearer 1|8X6nZIS9bGYJnZTMz3WEU2uGvAwZ3QXI7eSk0vCCe6b08676' -H 'Accept: application/json' https://coolify.idkwihl.site/api/v1/applications)",
+      "Bash(curl -sS -H 'Authorization: Bearer 1|8X6nZIS9bGYJnZTMz3WEU2uGvAwZ3QXI7eSk0vCCe6b08676' https://coolify.idkwihl.site/api/v1/applications)",
+      "Bash(python -c ' *)",
+      "Bash(grep -n \"apiFetch\\\\|request\\(\\\\`\\\\|'/auth\\\\|\\\\\"/auth\\\\|/workouts\\\\|/meals\" src/main.jsx)",
+      "Read(//d/code/aptech-assignment/Epro_MERN/server/**)",
+      "Bash(curl -sS -H 'Authorization: Bearer 1|8X6nZIS9bGYJnZTMz3WEU2uGvAwZ3QXI7eSk0vCCe6b08676' https://coolify.idkwihl.site/api/v1/servers)",
+      "Bash(curl -sS -o /dev/null -D - --max-redirs 0 https://fitness-tracker-api.idkwihl.site__TRACKED_VAR__)",
+      "Bash(curl -sS \"https://crt.sh/?q=%25.idkwihl.site&output=json\")",
+      "Bash(curl -sS -o /dev/null -v --max-redirs 0 https://fitness-tracker.idkwihl.site/)",
+      "Bash(curl -sS --max-time 45 -H \"User-Agent: Mozilla/5.0\" \"https://crt.sh/?q=idkwihl.site&output=json\" -o /dev/null -w \"http=%{http_code} size=%{size_download}\\\\n\")",
+      "Bash(curl -sS --max-time 60 -H 'User-Agent: Mozilla/5.0' 'https://crt.sh/?q=%25.idkwihl.site&output=json' -o C:/Users/Abdullah/AppData/Local/Temp/claude/d--code-aptech-assignment-Epro-MERN-frontend/50b7d6b7-dfa9-4950-9803-cc057bd62a75/scratchpad/crt.json)",
+      "Bash(curl -sS -D - https://alync-backend.idkwihl.site/)",
+      "Bash(curl -sS -D - http://alync-backend.idkwihl.site/)"
     ]
   }
 }

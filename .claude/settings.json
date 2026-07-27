@@ -38,7 +38,25 @@
       "Bash(node ./_drop.mjs)",
       "Bash(rm -f ./_drop.mjs)",
       "Bash(node ./_status.mjs)",
-      "Bash(rm -f ./_status.mjs)"
+      "Bash(rm -f ./_status.mjs)",
+      "Bash(npm run *)",
+      "Bash(timeout 60 node -e ' *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(timeout 300 npm run migrate)",
+      "Bash(timeout 400 node --test tests/tracking.test.js)",
+      "Bash(timeout 90 node -e ' *)",
+      "Bash(DISABLE_RATE_LIMIT=true timeout 120 node -e ' *)",
+      "Bash(node -p \"require\\('express/package.json'\\).version\")",
+      "Bash(sed -i 's/const { name, brand, category, basisUnit, per100, gramsPerServing, servingLabel } = req.body;/const { name, brand, category, basisUnit, per100, gramsPerServing, servingLabel } = req.body || {};/; s/const { foodId, quantity, unit } = req.body;/const { foodId, quantity, unit } = req.body || {};/' controllers/foodController.js)",
+      "Bash(sed -i 's/const { name, description, category, exercises, tags } = req.body;/const { name, description, category, exercises, tags } = req.body || {};/' controllers/routineController.js)",
+      "Bash(sed -i 's/const { mealType, foods, date, notes } = req.body;/const { mealType, foods, date, notes } = req.body || {};/g' controllers/nutritionController.js)",
+      "Bash(sed -i 's/const payload = { ...req.body };/const payload = { ...\\(req.body || {}\\) };/' controllers/routineController.js controllers/workoutController.js)",
+      "Bash(DISABLE_RATE_LIMIT=true timeout 400 node --test tests/tracking.test.js)",
+      "Bash(DISABLE_RATE_LIMIT=true timeout 400 node --test tests/api.test.js)",
+      "Bash(DISABLE_RATE_LIMIT=true timeout 150 node -e ' *)",
+      "Bash(awk '/^function Dashboard/,/^function WorkoutView/' main.jsx)",
+      "Bash(grep -n \"^\\\\.actions\\\\|^\\\\.action\\\\b\\\\|^\\\\.action[ ,{]\\\\|\\\\.action \" styles.css)",
+      "Bash(awk 'NR>=1700 && NR<=1830 && /@media/ {print NR\": \"$0}' styles.css)"
     ],
     "additionalDirectories": [
       "\\tmp"

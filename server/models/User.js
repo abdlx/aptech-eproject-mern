@@ -71,6 +71,33 @@ const userSchema = new mongoose.Schema({
     units: { type: String, default: 'metric' },
     theme: { type: String, enum: ['dark', 'light'], default: 'dark' },
     notificationsEnabled: { type: Boolean, default: true }
+  },
+  // Inputs for deriving daily calorie/macro targets (services/targetService.js).
+  // Weight is not stored here — it comes from the latest Progress entry so the
+  // targets track the user's actual logged weight.
+  bodyStats: {
+    heightCm: { type: Number, min: 50, max: 260 },
+    birthDate: { type: Date },
+    sex: { type: String, enum: ['male', 'female', 'unspecified'], default: 'unspecified' },
+    activityLevel: {
+      type: String,
+      enum: ['sedentary', 'light', 'moderate', 'active', 'very_active'],
+      default: 'moderate',
+    },
+    goal: {
+      type: String,
+      enum: ['lose', 'maintain', 'gain'],
+      default: 'maintain',
+    },
+  },
+  // Explicit overrides. While autoCalculate is true the values below are
+  // ignored and targets are derived from bodyStats instead.
+  nutritionTargets: {
+    autoCalculate: { type: Boolean, default: true },
+    calories: { type: Number, min: 0 },
+    protein: { type: Number, min: 0 },
+    carbs: { type: Number, min: 0 },
+    fats: { type: Number, min: 0 },
   }
 }, { timestamps: true });
 

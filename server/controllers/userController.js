@@ -5,6 +5,7 @@
 
 import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
+import { resolveTargets } from '../services/targetService.js';
 
 // Get User Profile
 export const getUserProfile = async (req, res) => {
@@ -35,6 +36,18 @@ export const updateUserProfile = async (req, res) => {
           ...req.body.preferences,
         };
       }
+      if (req.body.bodyStats) {
+        user.bodyStats = {
+          ...(user.bodyStats?.toObject?.() || {}),
+          ...req.body.bodyStats,
+        };
+      }
+      if (req.body.nutritionTargets) {
+        user.nutritionTargets = {
+          ...(user.nutritionTargets?.toObject?.() || {}),
+          ...req.body.nutritionTargets,
+        };
+      }
 
       if (req.body.password) {
         const salt = await bcrypt.genSalt(10);
@@ -53,7 +66,9 @@ export const updateUserProfile = async (req, res) => {
         name: updatedUser.name,
         email: updatedUser.email,
         profilePicture: updatedUser.profilePicture,
-        preferences: updatedUser.preferences
+        preferences: updatedUser.preferences,
+        bodyStats: updatedUser.bodyStats,
+        nutritionTargets: updatedUser.nutritionTargets
       });
     } else {
       res.status(404).json({ message: 'User not found' });
@@ -63,6 +78,17 @@ export const updateUserProfile = async (req, res) => {
       return res.status(409).json({ message: 'That email or username is already in use' });
     }
     res.status(400).json({ message: error.message });
+  }
+};
+
+// Effective daily calorie/macro targets — either the values saved on the
+// profile or figures derived from body stats and the latest logged weight.
+// Replaces the hardcoded 2,200 kcal / 140 g the dashboard used to assume.
+export const getUserTargets = async (req, res, next) => {
+  try {
+    res.json(await resolveTargets(req.user));
+  } catch (error) {
+    next(error);
   }
 };
 

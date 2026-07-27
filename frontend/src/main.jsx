@@ -1,37 +1,22 @@
 // ============================================================================
 // Original author: Munawwar (base Fitness Tracker UI).
-// Modified by: Abdullah — added the Live Feed (composer, posts, likes, comments)
-// and nav wiring. See AUTHORS.md for details.
+// Modified by: Abdullah — added the Live Feed (composer, posts, likes, comments),
+// routines + live workout sessions, the food-table meal editor, and real
+// per-user nutrition targets. See AUTHORS.md for details.
 // ============================================================================
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
-
-const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
-const AUTH_KEY = 'fitness-tracker.auth';
-
-const emptyWorkout = {
-  name: '',
-  category: 'strength',
-  exerciseName: '',
-  sets: '',
-  reps: '',
-  weight: '',
-  notes: '',
-  tags: '',
-};
-
-const emptyMeal = {
-  mealType: 'breakfast',
-  foodName: '',
-  quantity: '',
-  unit: 'g',
-  calories: '',
-  protein: '',
-  carbs: '',
-  fats: '',
-};
+import Icon from './components/Icon.jsx';
+import MealForm from './features/MealForm.jsx';
+import { RoutineForm, RoutinesView, SessionView } from './features/Routines.jsx';
+import {
+  API_BASE, AUTH_KEY, loadJson, saveJson, request, downloadReport, assetUrl,
+} from './lib/api.js';
+import {
+  num, mealTotals, totalsFor, macroSplit, workoutVolume, setCounts, latestWeight,
+} from './lib/calc.js';
 
 const emptyProgress = {
   weight: '',
@@ -51,24 +36,6 @@ const emptyReminder = {
   time: '',
 };
 
-function loadJson(key, fallback) {
-  try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveJson(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
-}
-
-function num(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 function formatDate(value) {
   if (!value) return 'Today';
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
@@ -85,109 +52,6 @@ function relativeTime(value) {
   return days === 1 ? 'Yesterday' : `${days}d ago`;
 }
 
-async function request(path, { method = 'GET', body, token } = {}) {
-  const headers = {};
-  const config = { method, headers };
-
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (body !== undefined) {
-    if (body instanceof FormData) {
-      config.body = body;
-    } else {
-      headers['Content-Type'] = 'application/json';
-      config.body = JSON.stringify(body);
-    }
-  }
-
-  const response = await fetch(`${API_BASE}${path}`, config);
-  const text = await response.text();
-  let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = text;
-  }
-
-  if (!response.ok) {
-    const error = new Error(data?.message || `Request failed (${response.status})`);
-    error.status = response.status;
-    throw error;
-  }
-
-  return data;
-}
-
-async function downloadReport(path, filename, token) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => null);
-    throw new Error(data?.message || 'Report download failed');
-  }
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function assetUrl(path) {
-  if (!path) return '';
-  if (/^https?:\/\//.test(path)) return path;
-  if (API_BASE.startsWith('http')) return `${new URL(API_BASE).origin}${path}`;
-  return path;
-}
-
-function Icon({ name, size = 26 }) {
-  const common = {
-    width: size,
-    height: size,
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: '2.2',
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-  };
-  const filled = { width: size, height: size, viewBox: '0 0 24 24', fill: 'currentColor' };
-
-  const paths = {
-    search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4.2-4.2" /></>,
-    bell: <><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></>,
-    flame: <path d="M12 21c3.9 0 7-2.7 7-6.6 0-2.5-1.3-4.7-3.4-5.9.1 1.8-.6 3-1.6 3.8.1-3.6-2-6.4-5.1-8.3.4 3.2-1.2 5.1-2.5 6.7A6.2 6.2 0 0 0 5 14.4C5 18.3 8.1 21 12 21Zm0-3.2a2.8 2.8 0 0 1-2.9-2.9c0-1.2.8-2.1 1.6-3 .2 1.3 1 2.1 2.2 2.7.8-.5 1.3-1.2 1.5-2.1 1 1 1.5 2 1.5 3A3 3 0 0 1 12 17.8Z" />,
-    dumbbell: <><path d="M6 7v10M18 7v10M3.5 9v6M20.5 9v6M6 12h12" /></>,
-    wheel: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2.3" /><path d="M12 4v5.6M12 14.4V20M4 12h5.6M14.4 12H20M7 7l3.4 3.4M13.6 13.6 17 17M17 7l-3.4 3.4M10.4 13.6 7 17" /></>,
-    plus: <><path d="M12 5v14M5 12h14" /></>,
-    utensils: <><path d="M6 3v8M9 3v8M3 3v8a3 3 0 0 0 6 0M15 3v18M15 10c4 0 6-2.5 6-7" /></>,
-    scale: <><path d="M6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z" /><path d="M9 8a3 3 0 0 1 6 0M12 12v2" /></>,
-    chartPie: <><path d="M12 3v9h9" /><path d="M21 12a9 9 0 1 1-9-9" /></>,
-    dots: <><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" /></>,
-    home: <path d="M3 11.5 12 4l9 7.5v8a1 1 0 0 1-1 1h-5.2v-5.7H9.2v5.7H4a1 1 0 0 1-1-1Z" />,
-    progress: <><path d="M4 19V5" /><path d="M4 19h17" /><path d="m7 15 4-4 3 3 5-7" /></>,
-    community: <><circle cx="9" cy="8" r="3" /><path d="M3 20c.5-3.2 2.4-5 6-5s5.5 1.8 6 5" /><circle cx="17" cy="10" r="2.4" /><path d="M16 15c2.8.2 4.4 1.8 4.8 5" /></>,
-    check: <><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16 9" /></>,
-    clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-    edit: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></>,
-    trash: <><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 15H6L5 6" /></>,
-    logout: <><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /><path d="M21 3v18" /></>,
-    save: <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z" /><path d="M17 21v-8H7v8" /><path d="M7 3v5h8" /></>,
-    x: <><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>,
-    file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /></>,
-    user: <><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4 3.7-6 8-6s7 2 8 6" /></>,
-    settings: <><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9c.3.6.9 1 1.6 1h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1Z" /></>,
-    heart: <path d="M12 20.5s-7.5-4.6-9.7-9.1C.9 8.2 2.4 5 5.5 5c1.9 0 3.3 1 4.5 2.6C11.2 6 12.6 5 14.5 5c3.1 0 4.6 3.2 3.2 6.4-2.2 4.5-9.7 9.1-9.7 9.1Z" />,
-    comment: <><path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-3a8 8 0 1 1 18-8Z" /></>,
-    image: <><rect x="3" y="4" width="18" height="16" rx="2.5" /><circle cx="8.5" cy="9.5" r="1.6" /><path d="m4 18 5-5 4 3.5L16 13l4 4" /></>,
-    feed: <><path d="M4 5h16M4 12h16M4 19h10" /></>,
-  };
-
-  return <svg {...(name === 'home' || name === 'flame' || name === 'heart' ? filled : common)}>{paths[name]}</svg>;
-}
 
 function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState('login');
@@ -255,9 +119,15 @@ function AuthScreen({ onAuth }) {
   );
 }
 
-function StatCard({ stat }) {
+// Renders as a button when the card opens something (the nutrition breakdown),
+// so it stays keyboard-reachable and announces itself as interactive.
+function StatCard({ stat, onClick }) {
+  const Tag = onClick ? 'button' : 'section';
   return (
-    <section className="glass stat-card">
+    <Tag
+      className={`glass stat-card${onClick ? ' stat-card-action' : ''}`}
+      {...(onClick ? { type: 'button', onClick, 'aria-label': `${stat.label} — open today's nutrition breakdown` } : {})}
+    >
       <div className={`icon-bubble ${stat.color}`}><Icon name={stat.icon} /></div>
       <div>
         <p>{stat.label}</p>
@@ -265,7 +135,77 @@ function StatCard({ stat }) {
         <span>{stat.target}</span>
       </div>
       <div className="meter"><i className={stat.color} style={{ width: `${Math.min(100, stat.progress)}%` }} /></div>
-    </section>
+    </Tag>
+  );
+}
+
+// Today's consumed-vs-target breakdown. Opened from the Calories or Protein
+// stat card rather than sitting permanently on the dashboard.
+function NutritionSummaryModal({ summary, onClose, onLogMeal, onOpenSettings }) {
+  const macros = ['calories', 'protein', 'carbs', 'fats'];
+
+  useEffect(() => {
+    function onKey(event) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Today's nutrition" onClick={onClose}>
+      <section className="glass data-form nutrition-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="nutrition-modal-head">
+          <h3>Today&rsquo;s Nutrition</h3>
+          <button type="button" className="food-row-remove" onClick={onClose} aria-label="Close"><Icon name="x" size={16} /></button>
+        </div>
+
+        <div className="macro-targets">
+          {macros.map((macro) => {
+            const consumed = Math.round(summary.consumed?.[macro] || 0);
+            const target = Math.round(summary.targets?.[macro] || 0);
+            const pct = target ? Math.min(100, (consumed / target) * 100) : 0;
+            const over = target && consumed > target;
+            return (
+              <div className="macro-target" key={macro}>
+                <p><span>{macro}</span><strong>{consumed}<small> / {target}{macro === 'calories' ? '' : 'g'}</small></strong></p>
+                <div className="meter"><i className={over ? 'pink' : 'lime'} style={{ width: `${pct}%` }} /></div>
+                <small className={over ? 'over' : ''}>
+                  {over ? `${consumed - target} over` : `${target - consumed} left`}
+                </small>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Where the day's calories actually went. */}
+        <div className="meal-breakdown">
+          {['breakfast', 'lunch', 'dinner', 'snack'].map((type) => {
+            const row = summary.byMealType?.[type];
+            return (
+              <p key={type} className={row?.count ? '' : 'empty'}>
+                <span>{type}</span>
+                <strong>{Math.round(row?.calories || 0)} kcal</strong>
+                <small>{row?.count ? `${row.count} logged` : 'nothing yet'}</small>
+              </p>
+            );
+          })}
+        </div>
+
+        {summary.targets?.needsBodyStats && (
+          <p className="target-hint">
+            Using generic targets — add your height, date of birth and activity level in
+            {' '}<button className="link-btn compact" onClick={onOpenSettings}>Settings</button>{' '}
+            for figures based on you.
+          </p>
+        )}
+
+        <div className="form-actions">
+          <button className="secondary-btn" type="button" onClick={onClose}><Icon name="x" size={18} />Close</button>
+          <button className="primary-btn" type="button" onClick={onLogMeal}><Icon name="plus" size={18} />Log meal</button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -312,34 +252,28 @@ function Analytics({ workouts, nutrition }) {
     return counts;
   }, {});
   const maxCategory = Math.max(1, ...Object.values(categoryCounts));
-  const macros = nutrition.reduce((total, meal) => {
-    (meal.foods || []).forEach((food) => {
-      total.protein += num(food.protein);
-      total.carbs += num(food.carbs);
-      total.fats += num(food.fats);
-    });
-    return total;
-  }, { protein: 0, carbs: 0, fats: 0 });
-  const macroCalories = {
-    protein: macros.protein * 4,
-    carbs: macros.carbs * 4,
-    fats: macros.fats * 9,
-  };
-  const totalMacroCalories = Math.max(1, Object.values(macroCalories).reduce((sum, value) => sum + value, 0));
+  // Split is derived from the same resolved totals as the calorie figures, so
+  // the donut and the calorie bars can no longer disagree.
+  const split = macroSplit(totalsFor(nutrition));
   const days = Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
     date.setDate(date.getDate() - (6 - index));
     const next = new Date(date);
     next.setDate(next.getDate() + 1);
-    const calories = nutrition
-      .filter((meal) => new Date(meal.date) >= date && new Date(meal.date) < next)
-      .reduce((sum, meal) => sum + (meal.foods || []).reduce((foodSum, food) => foodSum + num(food.calories), 0), 0);
-    const workoutCount = workouts.filter((workout) => new Date(workout.date) >= date && new Date(workout.date) < next).length;
-    return { label: new Intl.DateTimeFormat('en', { weekday: 'short' }).format(date), calories, workoutCount };
+    const inDay = nutrition.filter((meal) => new Date(meal.date) >= date && new Date(meal.date) < next);
+    const dayWorkouts = workouts.filter((workout) => new Date(workout.date) >= date && new Date(workout.date) < next);
+    return {
+      label: new Intl.DateTimeFormat('en', { weekday: 'short' }).format(date),
+      calories: totalsFor(inDay).calories,
+      workoutCount: dayWorkouts.length,
+      volume: dayWorkouts.reduce((sum, workout) => sum + workoutVolume(workout), 0),
+    };
   });
   const maxCalories = Math.max(1, ...days.map((day) => day.calories));
   const maxWorkouts = Math.max(1, ...days.map((day) => day.workoutCount));
+  const maxVolume = Math.max(1, ...days.map((day) => day.volume));
+  const totalVolume = workouts.reduce((sum, workout) => sum + workoutVolume(workout), 0);
 
   return (
     <section className="analytics-grid">
@@ -360,10 +294,17 @@ function Analytics({ workouts, nutrition }) {
           {days.map((day) => <div key={day.label}><span style={{ height: `${Math.max(6, (day.calories / maxCalories) * 100)}%` }} title={`${day.calories} kcal`} /><small>{day.label}</small></div>)}
         </div>
         <div className="macro-split" aria-label="Macronutrient calorie distribution">
-          {Object.entries(macroCalories).map(([macro, calories]) => (
-            <p key={macro}><strong>{Math.round((calories / totalMacroCalories) * 100)}%</strong><span>{macro}</span></p>
+          {Object.entries(split).map(([macro, percent]) => (
+            <p key={macro}><strong>{percent}%</strong><span>{macro}</span></p>
           ))}
         </div>
+      </article>
+      <article className="glass analytics-card">
+        <div className="subheading"><h3>Training volume</h3><small>Last 7 days</small></div>
+        <div className="vertical-bars" aria-label="Daily training volume chart">
+          {days.map((day) => <div key={day.label}><span style={{ height: `${Math.max(6, (day.volume / maxVolume) * 100)}%` }} title={`${Math.round(day.volume)} kg`} /><small>{day.label}</small></div>)}
+        </div>
+        <p className="chart-empty">Lifetime volume: <strong>{Math.round(totalVolume).toLocaleString()} kg</strong></p>
       </article>
     </section>
   );
@@ -388,77 +329,113 @@ function EmptyState({ icon, title, text }) {
   );
 }
 
+// Quick log for a workout that already happened. Routines cover the "plan it,
+// then track it live" path; this is the after-the-fact entry, but unlike the
+// original version it takes as many exercises as you actually did.
 function WorkoutForm({ initial, onCancel, onSubmit }) {
-  const [form, setForm] = useState(initial || emptyWorkout);
+  const [name, setName] = useState(initial?.name || '');
+  const [category, setCategory] = useState(initial?.category || 'strength');
+  const [tags, setTags] = useState((initial?.tags || []).join(', '));
+  const [exercises, setExercises] = useState(() => (
+    initial?.exercises?.length
+      ? initial.exercises.map((exercise) => ({
+        key: exercise._id || Math.random().toString(36).slice(2),
+        name: exercise.name || '',
+        sets: exercise.sets ?? '',
+        reps: exercise.reps ?? '',
+        weight: exercise.weight ?? '',
+        notes: exercise.notes || '',
+      }))
+      : [{ key: 'first', name: '', sets: '', reps: '', weight: '', notes: '' }]
+  ));
+
+  const volume = exercises.reduce((sum, exercise) => (
+    sum + num(exercise.sets) * num(exercise.reps) * num(exercise.weight)
+  ), 0);
+
+  function update(key, patch) {
+    setExercises((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+  }
 
   function submit(event) {
     event.preventDefault();
+    const cleaned = exercises
+      .filter((exercise) => exercise.name.trim())
+      .map((exercise, index) => ({
+        name: exercise.name.trim(),
+        sets: num(exercise.sets),
+        reps: num(exercise.reps),
+        weight: num(exercise.weight),
+        notes: exercise.notes,
+        order: index,
+      }));
+    if (!cleaned.length) return;
+
     onSubmit({
-      name: form.name,
-      category: form.category,
-      exercises: [{
-        name: form.exerciseName,
-        sets: num(form.sets),
-        reps: num(form.reps),
-        weight: num(form.weight),
-        notes: form.notes,
-      }],
-      tags: form.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+      name,
+      category,
+      exercises: cleaned,
+      tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean),
     });
   }
 
   return (
     <form className="glass data-form" onSubmit={submit}>
       <h3>{initial?._id ? 'Edit workout' : 'Log workout'}</h3>
-      <label>Routine name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
-      <label>Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}><option value="strength">Strength</option><option value="cardio">Cardio</option><option value="flexibility">Flexibility</option><option value="other">Other</option></select></label>
-      <label>Exercise<input value={form.exerciseName} onChange={(event) => setForm({ ...form, exerciseName: event.target.value })} required /></label>
+      <label>Workout name<input value={name} onChange={(e) => setName(e.target.value)} required /></label>
       <div className="form-row">
-        <label>Sets<input type="number" min="0" value={form.sets} onChange={(event) => setForm({ ...form, sets: event.target.value })} /></label>
-        <label>Reps<input type="number" min="0" value={form.reps} onChange={(event) => setForm({ ...form, reps: event.target.value })} /></label>
-        <label>Weight<input type="number" min="0" value={form.weight} onChange={(event) => setForm({ ...form, weight: event.target.value })} /></label>
+        <label>Category
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="strength">Strength</option>
+            <option value="cardio">Cardio</option>
+            <option value="flexibility">Flexibility</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label>Tags<input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="push, chest" /></label>
       </div>
-      <label>Tags<input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="push, chest" /></label>
-      <label>Notes<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
-      <FormActions onCancel={onCancel} />
-    </form>
-  );
-}
 
-function MealForm({ initial, onCancel, onSubmit }) {
-  const [form, setForm] = useState(initial || emptyMeal);
-
-  function submit(event) {
-    event.preventDefault();
-    onSubmit({
-      mealType: form.mealType,
-      foods: [{
-        name: form.foodName,
-        quantity: num(form.quantity),
-        unit: form.unit,
-        calories: num(form.calories),
-        protein: num(form.protein),
-        carbs: num(form.carbs),
-        fats: num(form.fats),
-      }],
-    });
-  }
-
-  return (
-    <form className="glass data-form" onSubmit={submit}>
-      <h3>{initial?._id ? 'Edit meal' : 'Log meal'}</h3>
-      <label>Meal type<select value={form.mealType} onChange={(event) => setForm({ ...form, mealType: event.target.value })}><option value="breakfast">Breakfast</option><option value="lunch">Lunch</option><option value="dinner">Dinner</option><option value="snack">Snack</option></select></label>
-      <label>Food<input value={form.foodName} onChange={(event) => setForm({ ...form, foodName: event.target.value })} required /></label>
-      <div className="form-row">
-        <label>Qty<input type="number" min="0" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} required /></label>
-        <label>Unit<input value={form.unit} onChange={(event) => setForm({ ...form, unit: event.target.value })} /></label>
-        <label>Calories<input type="number" min="0" value={form.calories} onChange={(event) => setForm({ ...form, calories: event.target.value })} /></label>
+      <div className="exercise-rows">
+        {exercises.map((exercise, index) => (
+          <div className="exercise-row" key={exercise.key}>
+            <div className="exercise-row-head">
+              <span className="exercise-index">{index + 1}</span>
+              <input value={exercise.name} onChange={(e) => update(exercise.key, { name: e.target.value })} placeholder="Exercise name" required />
+              <div className="exercise-row-tools">
+                <button
+                  type="button"
+                  onClick={() => setExercises((current) => (
+                    current.length > 1 ? current.filter((item) => item.key !== exercise.key) : current
+                  ))}
+                  aria-label="Remove exercise"
+                ><Icon name="x" size={15} /></button>
+              </div>
+            </div>
+            <div className="form-row">
+              <label>Sets<input type="number" min="0" value={exercise.sets} onChange={(e) => update(exercise.key, { sets: e.target.value })} /></label>
+              <label>Reps<input type="number" min="0" value={exercise.reps} onChange={(e) => update(exercise.key, { reps: e.target.value })} /></label>
+              <label>Weight kg<input type="number" min="0" step="any" value={exercise.weight} onChange={(e) => update(exercise.key, { weight: e.target.value })} /></label>
+            </div>
+            <label>Notes<input value={exercise.notes} onChange={(e) => update(exercise.key, { notes: e.target.value })} /></label>
+          </div>
+        ))}
       </div>
-      <div className="form-row">
-        <label>Protein<input type="number" min="0" value={form.protein} onChange={(event) => setForm({ ...form, protein: event.target.value })} /></label>
-        <label>Carbs<input type="number" min="0" value={form.carbs} onChange={(event) => setForm({ ...form, carbs: event.target.value })} /></label>
-        <label>Fats<input type="number" min="0" value={form.fats} onChange={(event) => setForm({ ...form, fats: event.target.value })} /></label>
+
+      <button
+        type="button"
+        className="link-btn compact add-row"
+        onClick={() => setExercises((current) => [...current, {
+          key: Math.random().toString(36).slice(2), name: '', sets: '', reps: '', weight: '', notes: '',
+        }])}
+      >
+        <Icon name="plus" size={16} /> Add exercise
+      </button>
+
+      <div className="meal-totals">
+        <strong>{Math.round(volume).toLocaleString()} kg</strong>
+        <span>total volume</span>
       </div>
+
       <FormActions onCancel={onCancel} />
     </form>
   );
@@ -537,12 +514,13 @@ function FormActions({ onCancel }) {
   );
 }
 
-function Dashboard({ stats, workouts, nutrition, progress, reminders, openForm, setView }) {
+function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, activeWorkout, openForm, setView, onResume, onOpenSummary }) {
   const recent = [
     ...workouts.slice(0, 2).map((item) => ({
       id: `w-${item._id}`,
       title: item.name,
-      detail: item.exercises?.map((exercise) => exercise.name).join(', ') || item.category,
+      detail: `${item.exercises?.map((exercise) => exercise.name).join(', ') || item.category}`
+        + `${workoutVolume(item) ? ` · ${Math.round(workoutVolume(item)).toLocaleString()} kg` : ''}`,
       time: relativeTime(item.date || item.createdAt),
       icon: 'dumbbell',
       color: 'lime',
@@ -550,7 +528,7 @@ function Dashboard({ stats, workouts, nutrition, progress, reminders, openForm, 
     ...nutrition.slice(0, 2).map((item) => ({
       id: `n-${item._id}`,
       title: `${item.mealType[0].toUpperCase()}${item.mealType.slice(1)} meal`,
-      detail: `${item.foods?.reduce((sum, food) => sum + num(food.calories), 0) || 0} kcal`,
+      detail: `${Math.round(mealTotals(item).calories)} kcal · ${item.foods?.map((f) => f.name).join(', ') || ''}`,
       time: relativeTime(item.date || item.createdAt),
       icon: 'utensils',
       color: 'pink',
@@ -569,27 +547,48 @@ function Dashboard({ stats, workouts, nutrition, progress, reminders, openForm, 
 
   return (
     <>
-      <div className="stats">{stats.map((stat) => <StatCard key={stat.label} stat={stat} />)}</div>
+      {activeWorkout && (
+        <section className="glass active-banner">
+          <div>
+            <small>Workout in progress</small>
+            <h3>{activeWorkout.name}</h3>
+            <p>{activeWorkout.summary?.completedSets || 0}/{activeWorkout.summary?.plannedSets || 0} sets done</p>
+          </div>
+          <button className="primary-btn" onClick={onResume}><Icon name="play" size={18} />Resume</button>
+        </section>
+      )}
+      <div className="stats">
+        {stats.map((stat) => (
+          <StatCard
+            key={stat.label}
+            stat={stat}
+            // Only the nutrition figures open the breakdown; Volume and Weight
+            // have nothing extra to show here.
+            onClick={summary && stat.opensSummary ? onOpenSummary : undefined}
+          />
+        ))}
+      </div>
+
       <SectionTitle title="Today's Overview" action="View All" onAction={() => setView('workout')} />
       <section className="glass overview">
         <div className="overview-block workout-bg">
           <img src="/images/next-workout.png" alt="" />
-          <small>Next Workout</small><h3>{nextWorkout?.name || 'Add a workout'}</h3><p><Icon name="clock" size={21} /> {nextWorkout ? formatDate(nextWorkout.date) : 'No schedule yet'}</p>
+          <small>Last Workout</small><h3>{nextWorkout?.name || 'Add a workout'}</h3><p><Icon name="clock" size={21} /> {nextWorkout ? formatDate(nextWorkout.date) : 'No schedule yet'}</p>
         </div>
         <div className="overview-block meal-bg">
           <img src="/images/next-meal.png" alt="" />
-          <small>Next Meal</small><h3>{nextMeal?.mealType || 'Log a meal'}</h3><p><Icon name="clock" size={21} /> {nextMeal ? formatDate(nextMeal.date) : 'No meal yet'}</p>
+          <small>Last Meal</small><h3>{nextMeal?.mealType || 'Log a meal'}</h3><p><Icon name="clock" size={21} /> {nextMeal ? formatDate(nextMeal.date) : 'No meal yet'}</p>
         </div>
       </section>
       <SectionTitle title="Weekly Progress" action="This Week" />
       <ProgressChart entries={progress} />
       <SectionTitle title="Quick Actions" />
       <section className="actions">
-        <button className="glass action" onClick={() => openForm('workout')}><span className="lime featured-action"><Icon name="plus" /></span><b>Log</b><b>Workout</b></button>
+        <button className="glass action" onClick={() => setView('routines')}><span className="lime featured-action"><Icon name="play" /></span><b>Start</b><b>Routine</b></button>
+        <button className="glass action" onClick={() => openForm('workout')}><span className="lime"><Icon name="dumbbell" /></span><b>Log</b><b>Workout</b></button>
         <button className="glass action" onClick={() => openForm('meal')}><span className="pink"><Icon name="utensils" /></span><b>Log</b><b>Meal</b></button>
         <button className="glass action" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" /></span><b>Update</b><b>Weight</b></button>
         <button className="glass action" onClick={() => setView('reports')}><span className="amber"><Icon name="chartPie" /></span><b>View</b><b>Reports</b></button>
-        <button className="glass action" onClick={() => openForm('reminder')}><span className="muted"><Icon name="bell" /></span><b>Add</b><b>Reminder</b></button>
       </section>
       <SectionTitle title="Recent Activity" action="View All" onAction={() => setView('workout')} />
       <section className="glass activity-list">
@@ -624,15 +623,35 @@ function WorkoutView({ workouts, onEdit, onDelete, onAdd, search, setSearch, cat
         </select>
       </div>
       <div className="record-grid">
-        {workouts.length ? workouts.map((workout) => (
-          <article className="record-card glass" key={workout._id}>
-            <div className="record-heading"><span className="pill">{workout.category}</span><time>{formatDate(workout.date)}</time></div>
-            <h3>{workout.name}</h3>
-            {(workout.exercises || []).map((exercise) => <p key={exercise._id || exercise.name}>{exercise.name}: {exercise.sets || 0} sets x {exercise.reps || 0} reps, {exercise.weight || 0} kg</p>)}
-            <div className="tag-row">{(workout.tags || []).map((tag) => <span key={tag}>{tag}</span>)}</div>
-            <CardActions onEdit={() => onEdit(workout)} onDelete={() => onDelete(workout._id)} />
-          </article>
-        )) : <EmptyState icon="dumbbell" title="No workouts found" text="Add routines with exercise names, sets, reps, weights, notes, and tags." />}
+        {workouts.length ? workouts.map((workout) => {
+          const counts = setCounts(workout);
+          return (
+            <article className="record-card glass" key={workout._id}>
+              <div className="record-heading">
+                <span className="pill">{workout.category}</span>
+                {workout.status === 'abandoned' && <span className="pill muted">abandoned</span>}
+                <time>{formatDate(workout.date)}</time>
+              </div>
+              <h3>{workout.name}</h3>
+              <div className="workout-summary">
+                <span><Icon name="check" size={15} />{counts.completed}/{counts.planned} sets</span>
+                <span><Icon name="chartPie" size={15} />{Math.round(workoutVolume(workout)).toLocaleString()} kg</span>
+                {workout.durationSeconds > 0 && <span><Icon name="timer" size={15} />{Math.round(workout.durationSeconds / 60)} min</span>}
+              </div>
+              {(workout.exercises || []).map((exercise) => {
+                const done = (exercise.setLog || []).filter((set) => set.completed);
+                return (
+                  <p key={exercise._id || exercise.name}>
+                    {exercise.name}: {done.length || exercise.sets || 0} sets x {done[0]?.reps ?? exercise.reps ?? 0} reps
+                    , {done[0]?.weight ?? exercise.weight ?? 0} kg
+                  </p>
+                );
+              })}
+              <div className="tag-row">{(workout.tags || []).map((tag) => <span key={tag}>{tag}</span>)}</div>
+              <CardActions onEdit={() => onEdit(workout)} onDelete={() => onDelete(workout._id)} />
+            </article>
+          );
+        }) : <EmptyState icon="dumbbell" title="No workouts found" text="Start a routine to track sets live, or log a finished workout here." />}
       </div>
     </Panel>
   );
@@ -648,19 +667,30 @@ function NutritionView({ nutrition, onEdit, onDelete, onAdd, search, setSearch, 
         </select>
       </div>
       <div className="record-grid">
-        {nutrition.length ? nutrition.map((meal) => (
-          <article className="record-card glass" key={meal._id}>
-            <div className="record-heading"><span className="pill pink-fill">{meal.mealType}</span><time>{formatDate(meal.date)}</time></div>
-            <h3>{meal.foods?.map((food) => food.name).join(', ') || 'Meal'}</h3>
-            <p>{meal.foods?.reduce((sum, food) => sum + num(food.calories), 0) || 0} kcal</p>
-            <div className="macro-row">
-              <span>Protein {meal.foods?.reduce((sum, food) => sum + num(food.protein), 0) || 0}g</span>
-              <span>Carbs {meal.foods?.reduce((sum, food) => sum + num(food.carbs), 0) || 0}g</span>
-              <span>Fats {meal.foods?.reduce((sum, food) => sum + num(food.fats), 0) || 0}g</span>
-            </div>
-            <CardActions onEdit={() => onEdit(meal)} onDelete={() => onDelete(meal._id)} />
-          </article>
-        )) : <EmptyState icon="utensils" title="No meals found" text="Log food quantities, calories, and macros for daily nutrition insight." />}
+        {nutrition.length ? nutrition.map((meal) => {
+          const totals = mealTotals(meal);
+          return (
+            <article className="record-card glass" key={meal._id}>
+              <div className="record-heading"><span className="pill pink-fill">{meal.mealType}</span><time>{formatDate(meal.date)}</time></div>
+              <h3>{meal.foods?.map((food) => food.name).join(', ') || 'Meal'}</h3>
+              <p className="meal-kcal">{Math.round(totals.calories)} kcal</p>
+              <ul className="meal-foods">
+                {(meal.foods || []).map((food) => (
+                  <li key={food._id || food.name}>
+                    <span>{food.name}</span>
+                    <small>{food.quantity}{food.unit === 'serving' ? ' serving' : food.unit} · {Math.round(food.calories || 0)} kcal</small>
+                  </li>
+                ))}
+              </ul>
+              <div className="macro-row">
+                <span>Protein {Math.round(totals.protein)}g</span>
+                <span>Carbs {Math.round(totals.carbs)}g</span>
+                <span>Fats {Math.round(totals.fats)}g</span>
+              </div>
+              <CardActions onEdit={() => onEdit(meal)} onDelete={() => onDelete(meal._id)} />
+            </article>
+          );
+        }) : <EmptyState icon="utensils" title="No meals found" text="Search the food table and log a portion — calories are worked out for you." />}
       </div>
     </Panel>
   );
@@ -903,7 +933,7 @@ function FeedView({ posts, workouts, currentUser, loading, hasMore, onCreate, on
   );
 }
 
-function SettingsView({ profile, onSave, onSavePicture }) {
+function SettingsView({ profile, summary, onSave, onSavePicture }) {
   const [form, setForm] = useState({
     username: profile?.username || '',
     name: profile?.name || '',
@@ -912,6 +942,16 @@ function SettingsView({ profile, onSave, onSavePicture }) {
     units: profile?.preferences?.units || 'metric',
     theme: profile?.preferences?.theme || 'dark',
     notificationsEnabled: profile?.preferences?.notificationsEnabled ?? true,
+    heightCm: profile?.bodyStats?.heightCm || '',
+    birthDate: profile?.bodyStats?.birthDate ? String(profile.bodyStats.birthDate).slice(0, 10) : '',
+    sex: profile?.bodyStats?.sex || 'unspecified',
+    activityLevel: profile?.bodyStats?.activityLevel || 'moderate',
+    goal: profile?.bodyStats?.goal || 'maintain',
+    autoCalculate: profile?.nutritionTargets?.autoCalculate ?? true,
+    calories: profile?.nutritionTargets?.calories || '',
+    protein: profile?.nutritionTargets?.protein || '',
+    carbs: profile?.nutritionTargets?.carbs || '',
+    fats: profile?.nutritionTargets?.fats || '',
   });
   const [picture, setPicture] = useState(null);
 
@@ -926,6 +966,22 @@ function SettingsView({ profile, onSave, onSavePicture }) {
         units: form.units,
         theme: form.theme,
         notificationsEnabled: form.notificationsEnabled,
+      },
+      bodyStats: {
+        ...(form.heightCm ? { heightCm: num(form.heightCm) } : {}),
+        ...(form.birthDate ? { birthDate: form.birthDate } : {}),
+        sex: form.sex,
+        activityLevel: form.activityLevel,
+        goal: form.goal,
+      },
+      nutritionTargets: {
+        autoCalculate: form.autoCalculate,
+        ...(form.autoCalculate ? {} : {
+          calories: num(form.calories),
+          protein: num(form.protein),
+          carbs: num(form.carbs),
+          fats: num(form.fats),
+        }),
       },
     });
   }
@@ -948,6 +1004,66 @@ function SettingsView({ profile, onSave, onSavePicture }) {
           <label>Theme<select value={form.theme} onChange={(event) => setForm({ ...form, theme: event.target.value })}><option value="dark">Dark</option><option value="light">Light</option></select></label>
         </div>
         <label className="toggle-row"><input type="checkbox" checked={form.notificationsEnabled} onChange={(event) => setForm({ ...form, notificationsEnabled: event.target.checked })} />Notifications enabled</label>
+
+        <div className="subheading"><h3>Body & targets</h3></div>
+        <p className="food-hint">
+          Used to work out your daily calorie and macro targets. Weight comes from your
+          latest progress entry, so the targets follow it as you go.
+        </p>
+        <div className="form-row">
+          <label>Height cm<input type="number" min="50" max="260" value={form.heightCm} onChange={(e) => setForm({ ...form, heightCm: e.target.value })} /></label>
+          <label>Date of birth<input type="date" value={form.birthDate} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} /></label>
+          <label>Sex
+            <select value={form.sex} onChange={(e) => setForm({ ...form, sex: e.target.value })}>
+              <option value="unspecified">Prefer not to say</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </label>
+        </div>
+        <div className="form-row">
+          <label>Activity level
+            <select value={form.activityLevel} onChange={(e) => setForm({ ...form, activityLevel: e.target.value })}>
+              <option value="sedentary">Sedentary (desk job)</option>
+              <option value="light">Light (1-3 days/wk)</option>
+              <option value="moderate">Moderate (3-5 days/wk)</option>
+              <option value="active">Active (6-7 days/wk)</option>
+              <option value="very_active">Very active (physical job)</option>
+            </select>
+          </label>
+          <label>Goal
+            <select value={form.goal} onChange={(e) => setForm({ ...form, goal: e.target.value })}>
+              <option value="lose">Lose weight</option>
+              <option value="maintain">Maintain</option>
+              <option value="gain">Gain weight</option>
+            </select>
+          </label>
+        </div>
+
+        <label className="toggle-row">
+          <input type="checkbox" checked={form.autoCalculate} onChange={(e) => setForm({ ...form, autoCalculate: e.target.checked })} />
+          Calculate my targets automatically
+        </label>
+
+        {form.autoCalculate ? (
+          summary?.targets && (
+            <div className="meal-totals">
+              <strong>{summary.targets.calories} kcal</strong>
+              <span>P {summary.targets.protein}g</span>
+              <span>C {summary.targets.carbs}g</span>
+              <span>F {summary.targets.fats}g</span>
+              {summary.targets.basis && <small>TDEE {summary.targets.basis.tdee} kcal</small>}
+            </div>
+          )
+        ) : (
+          <div className="form-row">
+            <label>Calories<input type="number" min="0" value={form.calories} onChange={(e) => setForm({ ...form, calories: e.target.value })} /></label>
+            <label>Protein g<input type="number" min="0" value={form.protein} onChange={(e) => setForm({ ...form, protein: e.target.value })} /></label>
+            <label>Carbs g<input type="number" min="0" value={form.carbs} onChange={(e) => setForm({ ...form, carbs: e.target.value })} /></label>
+            <label>Fats g<input type="number" min="0" value={form.fats} onChange={(e) => setForm({ ...form, fats: e.target.value })} /></label>
+          </div>
+        )}
+
         <button className="primary-btn" type="submit"><Icon name="save" size={18} />Save profile</button>
       </form>
     </Panel>
@@ -995,6 +1111,11 @@ function App() {
   const [feedPage, setFeedPage] = useState(1);
   const [feedHasMore, setFeedHasMore] = useState(false);
   const [feedLoading, setFeedLoading] = useState(false);
+  const [routines, setRoutines] = useState([]);
+  const [activeWorkout, setActiveWorkout] = useState(null);
+  const [showSummary, setShowSummary] = useState(false);
+  // Today's consumed-vs-target rollup, computed server-side.
+  const [summary, setSummary] = useState(null);
 
   const token = auth?.token;
 
@@ -1011,7 +1132,10 @@ function App() {
     setLoading(true);
     setStatus('');
     try {
-      const [profileData, workoutData, nutritionData, progressData, notificationData, feedbackData, reminderData] = await Promise.all([
+      const [
+        profileData, workoutData, nutritionData, progressData, notificationData,
+        feedbackData, reminderData, routineData, activeData, summaryData,
+      ] = await Promise.all([
         request('/users', { token }),
         request('/workouts', { token }),
         request('/nutrition', { token }),
@@ -1019,6 +1143,10 @@ function App() {
         request('/notifications', { token }).catch(() => []),
         request('/feedback', { token }).catch(() => []),
         request('/reminders', { token }),
+        request('/routines', { token }).catch(() => []),
+        // 204 when nothing is in flight; the request helper maps that to null.
+        request('/workouts/active', { token }).catch(() => null),
+        request('/nutrition/summary', { token }).catch(() => null),
       ]);
       setProfile(profileData);
       setWorkouts(workoutData);
@@ -1027,6 +1155,9 @@ function App() {
       setNotifications(notificationData);
       setFeedback(feedbackData);
       setReminders(reminderData);
+      setRoutines(routineData);
+      setActiveWorkout(activeData);
+      setSummary(summaryData);
     } catch (error) {
       if (error.status === 401) {
         logout();
@@ -1085,6 +1216,80 @@ function App() {
     }, 'Meal saved.');
   }
 
+  async function saveRoutine(payload) {
+    await mutate(async () => {
+      const path = editing?._id ? `/routines/${editing._id}` : '/routines';
+      const method = editing?._id ? 'PUT' : 'POST';
+      await request(path, { method, body: payload, token });
+      closeForm();
+      await loadAll();
+    }, 'Routine saved.');
+  }
+
+  async function startRoutine(routine) {
+    await mutate(async () => {
+      try {
+        const workout = await request(`/routines/${routine._id}/start`, { method: 'POST', token });
+        setActiveWorkout(workout);
+        setView('session');
+      } catch (error) {
+        // The server refuses a second concurrent session and hands back the
+        // one already running — resume that instead of erroring at the user.
+        if (error.status === 409 && error.data?.workout) {
+          setActiveWorkout(error.data.workout);
+          setView('session');
+          return;
+        }
+        throw error;
+      }
+    });
+  }
+
+  // Ticking a set is optimistic — the checkbox responds immediately and the
+  // server's authoritative copy (with the recomputed summary) replaces it.
+  async function logSet(exerciseId, setId, patch) {
+    setActiveWorkout((current) => (current ? {
+      ...current,
+      exercises: current.exercises.map((exercise) => (exercise._id !== exerciseId ? exercise : {
+        ...exercise,
+        setLog: exercise.setLog.map((set) => (set._id === setId ? { ...set, ...patch } : set)),
+      })),
+    } : current));
+
+    try {
+      const updated = await request(
+        `/workouts/${activeWorkout._id}/exercises/${exerciseId}/sets/${setId}`,
+        { method: 'PUT', body: patch, token },
+      );
+      setActiveWorkout(updated);
+    } catch (error) {
+      setStatus(error.message);
+      const fresh = await request('/workouts/active', { token }).catch(() => null);
+      setActiveWorkout(fresh);
+    }
+  }
+
+  async function addSet(exerciseId) {
+    await mutate(async () => {
+      const updated = await request(
+        `/workouts/${activeWorkout._id}/exercises/${exerciseId}/sets`,
+        { method: 'POST', body: {}, token },
+      );
+      setActiveWorkout(updated);
+    });
+  }
+
+  async function finishWorkout(abandoned = false) {
+    await mutate(async () => {
+      await request(`/workouts/${activeWorkout._id}/complete`, {
+        method: 'POST', body: { abandoned }, token,
+      });
+      setActiveWorkout(null);
+      setView('workout');
+      await loadAll();
+    }, abandoned ? 'Workout abandoned.' : 'Workout complete — nice work.');
+  }
+
   async function saveProgress(payload) {
     await mutate(async () => {
       const path = editing?._id ? `/progress/${editing._id}` : '/progress';
@@ -1106,6 +1311,8 @@ function App() {
     await mutate(async () => {
       const data = await request('/users', { method: 'PUT', body: payload, token });
       setProfile(data);
+      // Body stats feed the derived targets, so refresh the day's rollup.
+      setSummary(await request('/nutrition/summary', { token }).catch(() => null));
     }, 'Profile updated.');
   }
 
@@ -1251,42 +1458,70 @@ function App() {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const todayNutrition = nutrition.filter((meal) => new Date(meal.date) >= startOfToday);
-    const calories = todayNutrition.reduce((sum, meal) => sum + (meal.foods || []).reduce((foodSum, food) => foodSum + num(food.calories), 0), 0);
-    const protein = todayNutrition.reduce((sum, meal) => sum + (meal.foods || []).reduce((foodSum, food) => foodSum + num(food.protein), 0), 0);
-    const latestWeight = progress[0]?.weight || 0;
-    return { calories, protein, latestWeight, workouts: workouts.length, meals: nutrition.length, progress: progress.length };
-  }, [nutrition, progress, workouts]);
+    const today = totalsFor(todayNutrition);
+    // Prefer the server's rollup (which knows the user's targets); fall back to
+    // the local sum if the summary request failed.
+    const calories = summary ? summary.consumed.calories : today.calories;
+    const protein = summary ? summary.consumed.protein : today.protein;
+    const weekAgo = new Date(Date.now() - 7 * 86400000);
+    return {
+      calories,
+      protein,
+      // Does not assume `progress` is sorted.
+      latestWeight: latestWeight(progress),
+      volume: workouts
+        .filter((workout) => new Date(workout.date) >= weekAgo)
+        .reduce((sum, workout) => sum + workoutVolume(workout), 0),
+      workouts: workouts.length,
+      meals: nutrition.length,
+      progress: progress.length,
+    };
+  }, [nutrition, progress, workouts, summary]);
+
+  const calorieTarget = summary?.targets?.calories || 0;
+  const proteinTarget = summary?.targets?.protein || 0;
 
   const stats = [
-    { label: 'Calories', value: totals.calories.toLocaleString(), target: '/ 2,200 kcal', icon: 'flame', color: 'pink', progress: (totals.calories / 2200) * 100 },
-    { label: 'Workouts', value: String(totals.workouts), target: '/ routines', icon: 'dumbbell', color: 'lime', progress: Math.min(100, totals.workouts * 15) },
-    { label: 'Weight', value: totals.latestWeight ? String(totals.latestWeight) : '--', target: 'kg latest', icon: 'scale', color: 'cyan', progress: totals.latestWeight ? 75 : 10 },
-    { label: 'Protein', value: `${Math.round(totals.protein)}`, target: 'g today', icon: 'utensils', color: 'amber', progress: Math.min(100, (totals.protein / 140) * 100) },
+    {
+      label: 'Calories',
+      value: Math.round(totals.calories).toLocaleString(),
+      target: calorieTarget ? `/ ${calorieTarget.toLocaleString()} kcal` : 'kcal today',
+      icon: 'flame',
+      color: 'pink',
+      progress: calorieTarget ? (totals.calories / calorieTarget) * 100 : 0,
+      opensSummary: true,
+    },
+    {
+      label: 'Protein',
+      value: `${Math.round(totals.protein)}`,
+      target: proteinTarget ? `/ ${proteinTarget} g` : 'g today',
+      icon: 'utensils',
+      color: 'amber',
+      progress: proteinTarget ? (totals.protein / proteinTarget) * 100 : 0,
+      opensSummary: true,
+    },
+    {
+      label: 'Volume',
+      value: Math.round(totals.volume).toLocaleString(),
+      target: 'kg this week',
+      icon: 'dumbbell',
+      color: 'lime',
+      // Relative to a 20,000 kg week — a rough but honest reference point
+      // rather than the old `count * 15` placeholder.
+      progress: Math.min(100, (totals.volume / 20000) * 100),
+    },
+    {
+      label: 'Weight',
+      value: totals.latestWeight ? String(totals.latestWeight) : '--',
+      target: 'kg latest',
+      icon: 'scale',
+      color: 'cyan',
+      progress: totals.latestWeight ? 100 : 0,
+    },
   ];
 
   if (!auth) return <AuthScreen onAuth={setAuth} />;
 
-  const mappedWorkout = editing && {
-    ...emptyWorkout,
-    ...editing,
-    exerciseName: editing.exercises?.[0]?.name || '',
-    sets: editing.exercises?.[0]?.sets || '',
-    reps: editing.exercises?.[0]?.reps || '',
-    weight: editing.exercises?.[0]?.weight || '',
-    notes: editing.exercises?.[0]?.notes || '',
-    tags: editing.tags?.join(', ') || '',
-  };
-  const mappedMeal = editing && {
-    ...emptyMeal,
-    ...editing,
-    foodName: editing.foods?.[0]?.name || '',
-    quantity: editing.foods?.[0]?.quantity || '',
-    unit: editing.foods?.[0]?.unit || 'g',
-    calories: editing.foods?.[0]?.calories || '',
-    protein: editing.foods?.[0]?.protein || '',
-    carbs: editing.foods?.[0]?.carbs || '',
-    fats: editing.foods?.[0]?.fats || '',
-  };
   const mappedProgress = editing && {
     ...emptyProgress,
     ...editing,
@@ -1324,19 +1559,56 @@ function App() {
       {status && <div className="status-banner">{status}</div>}
       {loading && <div className="status-banner">Loading fitness data...</div>}
 
-      {view === 'dashboard' && <Dashboard stats={stats} workouts={workouts} nutrition={nutrition} progress={progress} reminders={reminders} openForm={openForm} setView={setView} />}
+      {view === 'dashboard' && <Dashboard stats={stats} summary={summary} workouts={workouts} nutrition={nutrition} progress={progress} reminders={reminders} activeWorkout={activeWorkout} openForm={openForm} setView={setView} onResume={() => setView('session')} onOpenSummary={() => setShowSummary(true)} />}
+      {view === 'routines' && (
+        <Panel title="Routines" action="New routine" onAction={() => openForm('routine')}>
+          <RoutinesView
+            routines={routines}
+            activeWorkout={activeWorkout}
+            onStart={startRoutine}
+            onEdit={(routine) => openForm('routine', routine)}
+            onDelete={(id) => removeRecord(`/routines/${id}`)}
+            onAdd={() => openForm('routine')}
+            onResume={() => setView('session')}
+          />
+        </Panel>
+      )}
+      {view === 'session' && (activeWorkout ? (
+        <SessionView
+          workout={activeWorkout}
+          onLogSet={logSet}
+          onAddSet={addSet}
+          onComplete={() => finishWorkout(false)}
+          onAbandon={() => finishWorkout(true)}
+          onBack={() => setView('routines')}
+        />
+      ) : (
+        <Panel title="No active workout">
+          <EmptyState icon="play" title="Nothing in progress" text="Start a routine to track your sets as you go." />
+        </Panel>
+      ))}
       {view === 'workout' && <WorkoutView workouts={filteredWorkouts} onEdit={(item) => openForm('workout', item)} onDelete={(id) => removeRecord(`/workouts/${id}`)} onAdd={() => openForm('workout')} search={workoutSearch} setSearch={setWorkoutSearch} category={workoutCategory} setCategory={setWorkoutCategory} />}
       {view === 'nutrition' && <NutritionView nutrition={filteredNutrition} onEdit={(item) => openForm('meal', item)} onDelete={(id) => removeRecord(`/nutrition/${id}`)} onAdd={() => openForm('meal')} search={mealSearch} setSearch={setMealSearch} mealType={mealType} setMealType={setMealType} />}
       {view === 'progress' && <ProgressView progress={progress} onEdit={(item) => openForm('progress', item)} onDelete={(id) => removeRecord(`/progress/${id}`)} onAdd={() => openForm('progress')} />}
       {view === 'reports' && <ReportsView onExportCsv={exportCsv} onExportPdf={exportPdf} totals={totals} workouts={workouts} nutrition={nutrition} />}
       {view === 'community' && <CommunityView feedback={feedback} notifications={notifications} reminders={reminders} onFeedback={submitFeedback} onReadNotification={markNotificationRead} onDeleteNotification={deleteNotification} onDeleteReminder={deleteReminder} onReminder={() => openForm('reminder')} onSearchUsers={searchUsers} />}
       {view === 'feed' && <FeedView posts={feedPosts} workouts={workouts} currentUser={profile || auth} loading={feedLoading} hasMore={feedHasMore} onCreate={createPost} onLike={toggleLike} onComment={commentOnPost} onDelete={deletePost} onLoadMore={() => loadFeed(feedPage + 1)} />}
-      {view === 'settings' && <SettingsView profile={profile || auth} onSave={saveProfile} onSavePicture={saveProfilePicture} />}
+      {view === 'settings' && <SettingsView profile={profile || auth} summary={summary} onSave={saveProfile} onSavePicture={saveProfilePicture} />}
+
+      {showSummary && summary && (
+        <NutritionSummaryModal
+          summary={summary}
+          onClose={() => setShowSummary(false)}
+          onLogMeal={() => { setShowSummary(false); openForm('meal'); }}
+          onOpenSettings={() => { setShowSummary(false); setView('settings'); }}
+        />
+      )}
 
       {formType && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
-          {formType === 'workout' && <WorkoutForm initial={mappedWorkout} onCancel={closeForm} onSubmit={saveWorkout} />}
-          {formType === 'meal' && <MealForm initial={mappedMeal} onCancel={closeForm} onSubmit={saveMeal} />}
+          {formType === 'workout' && <WorkoutForm initial={editing} onCancel={closeForm} onSubmit={saveWorkout} />}
+          {formType === 'routine' && <RoutineForm initial={editing} onCancel={closeForm} onSubmit={saveRoutine} />}
+          {formType === 'meal' && <MealForm initial={editing} token={token} onCancel={closeForm} onSubmit={saveMeal} />}
           {formType === 'progress' && <ProgressForm initial={mappedProgress} onCancel={closeForm} onSubmit={saveProgress} />}
           {formType === 'reminder' && <ReminderForm onCancel={closeForm} onSubmit={saveReminder} />}
         </div>
@@ -1346,10 +1618,14 @@ function App() {
         <div className="nav-surface" aria-hidden="true" />
         <div className="nav-items">
           <button className={`nav-item ${view === 'dashboard' ? 'active' : ''}`} onClick={() => setView('dashboard')}><Icon name="home" size={24} /><span>Home</span></button>
-          <button className={`nav-item ${view === 'workout' ? 'active' : ''}`} onClick={() => setView('workout')}><Icon name="dumbbell" size={23} /><span>Workout</span></button>
+          <button className={`nav-item ${view === 'routines' || view === 'session' ? 'active' : ''}`} onClick={() => setView(activeWorkout ? 'session' : 'routines')}>
+            <Icon name={activeWorkout ? 'play' : 'list'} size={23} />
+            <span>{activeWorkout ? 'Live' : 'Routines'}</span>
+            {activeWorkout && <i className="nav-dot" aria-hidden="true" />}
+          </button>
           <button className={`nav-item nav-center ${view === 'feed' ? 'active' : ''}`} onClick={() => setView('feed')} aria-label="Live feed"><Icon name="feed" size={24} /><span>Feed</span></button>
+          <button className={`nav-item ${view === 'nutrition' ? 'active' : ''}`} onClick={() => setView('nutrition')}><Icon name="utensils" size={23} /><span>Food</span></button>
           <button className={`nav-item ${view === 'progress' ? 'active' : ''}`} onClick={() => setView('progress')}><Icon name="progress" size={23} /><span>Progress</span></button>
-          <button className={`nav-item ${view === 'community' ? 'active' : ''}`} onClick={() => setView('community')}><Icon name="community" size={23} /><span>Community</span></button>
         </div>
         <button className="nav-add" aria-label="Add new entry" aria-haspopup="true" aria-expanded={addMenu} onClick={() => setAddMenu((open) => !open)}><Icon name="plus" size={28} /></button>
       </nav>
@@ -1359,6 +1635,7 @@ function App() {
           <div className="add-menu glass" onClick={(event) => event.stopPropagation()}>
             <h3>What do you want to add?</h3>
             <div className="add-menu-grid">
+              <button className="add-menu-item" onClick={() => openForm('routine')}><span className="lime"><Icon name="list" size={26} /></span><b>Routine</b></button>
               <button className="add-menu-item" onClick={() => openForm('workout')}><span className="lime"><Icon name="dumbbell" size={26} /></span><b>Workout</b></button>
               <button className="add-menu-item" onClick={() => openForm('meal')}><span className="pink"><Icon name="utensils" size={26} /></span><b>Meal</b></button>
               <button className="add-menu-item" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" size={26} /></span><b>Weight</b></button>

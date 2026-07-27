@@ -18,6 +18,8 @@ import feedbackRoutes from './routes/feedbackRoutes.js';
 import reminderRoutes from './routes/reminderRoutes.js';
 import goalRoutes from './routes/goalRoutes.js';
 import forumRoutes from './routes/forumRoutes.js';
+import foodRoutes from './routes/foodRoutes.js';
+import routineRoutes from './routes/routineRoutes.js';
 import { startReminderScheduler } from './services/reminderScheduler.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -50,6 +52,8 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/forum', forumRoutes);
+app.use('/api/foods', foodRoutes);
+app.use('/api/routines', routineRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' });

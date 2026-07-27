@@ -8,7 +8,8 @@ import {
   getUserProfile,
   updateUserProfile,
   searchUsers,
-  getDashboardAnalytics
+  getDashboardAnalytics,
+  getUserTargets
 } from '../controllers/userController.js';
 import {
   followUser,
@@ -26,6 +27,7 @@ router.put('/', protect, updateUserProfile);
 router.put('/profile-picture', protect, upload.single('profilePicture'), updateUserProfile);
 router.get('/search', protect, searchUsers);
 router.get('/dashboard', protect, getDashboardAnalytics);
+router.get('/targets', protect, getUserTargets);
 
 // Social graph
 router.post('/:id/follow', protect, followUser);
