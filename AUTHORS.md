@@ -55,6 +55,7 @@ This document records who wrote what in the Fitness Tracker project.
 | `migrations/013_create_routines.js` | Routines collection |
 | `migrations/014_backfill_totals.js` | Backfills meal totals + workout summaries on existing records |
 | `tests/tracking.test.js` | Integration tests for the calculation layer (11 tests) |
+| `tests/full-coverage.test.js` | Exercises every remaining route (users, workouts, nutrition, progress, reports, notifications, feedback, reminders, goals, forum, foods, routines) so all ~70 endpoints have at least one test (15 tests) |
 
 ### Modified by Abdullah (Munawwar's originals, extended)
 
@@ -101,13 +102,14 @@ This document records who wrote what in the Fitness Tracker project.
 
 | File | Attribution |
 |------|-------------|
-| `main.jsx` | **Munawwar** (whole app). **Abdullah** added the Live Feed (`FeedComposer`, `FeedPost`, `FeedView`, feed state/data functions, nav wiring); replaced the single-entry workout/meal forms with multi-row editors; added routine/session state and handlers, real per-user targets, and the daily macro panel. |
-| `styles.css` | **Munawwar** (whole stylesheet). **Abdullah** added the `Live Feed` block and the `Food picker, routines & live sessions` block at the end. |
+| `main.jsx` | **Munawwar** (whole app). **Abdullah** added the Live Feed (`FeedComposer`, `FeedPost`, `FeedView`, feed state/data functions, nav wiring); replaced the single-entry workout/meal forms with multi-row editors; added routine/session state and handlers, real per-user targets, and the daily macro panel. Later wired up Goals (nav, dashboard widget, form), follow/unfollow + a Connections panel in Settings, reminder editing, the forgot/reset-password and email-verify screens, and a real server-side logout — see "endpoint wiring" below. |
+| `styles.css` | **Munawwar** (whole stylesheet). **Abdullah** added the `Live Feed` block and the `Food picker, routines & live sessions` block at the end, then later a block of styles for Goals, follow buttons, the Connections panel, and the food create/edit form. |
 | `lib/calc.js` | **Abdullah** — client mirror of the server maths; replaced five duplicated inline calorie `reduce`s. |
-| `lib/api.js` | **Munawwar**'s fetch helpers, extracted from `main.jsx` by **Abdullah** so feature modules share them. |
+| `lib/api.js` | **Munawwar**'s fetch helpers, extracted from `main.jsx` by **Abdullah** so feature modules share them. Abdullah later added silent access-token refresh (de-duplicated retry-on-401 through `POST /auth/refresh`). |
 | `components/Icon.jsx` | **Munawwar**'s icon set, extracted by **Abdullah**, who added the routine/session icons. |
-| `features/MealForm.jsx` | **Abdullah** — food-table type-ahead, multi-row meal editor, live portion scaling. |
+| `features/MealForm.jsx` | **Abdullah** — food-table type-ahead, multi-row meal editor, live portion scaling. Later extended with inline create/edit/delete for the user's own food-table entries. |
 | `features/Routines.jsx` | **Abdullah** — routine builder, routine list, live session tracker with per-set ticking and rest timer. |
+| `features/Goals.jsx` | **Abdullah** — created this file. The backend's `/api/goals` (CRUD + auto-achievement) had existed with no UI at all; this adds the goal form and list/progress view. |
 
 ---
 
@@ -141,3 +143,31 @@ counted log entries rather than calories. This session added:
   hardcoded 2,200 kcal / 140 g.
 - **Value-based goals** over daily/weekly/monthly windows, plus a fix for weight
   goals never firing (the write source was passed where a metric name was expected).
+
+**Abdullah (session three) — endpoint audit and UI wiring.** An audit of every
+route in `server/routes/` against every `request(...)` call site in
+`frontend/src` found the backend had ~70 working, tested endpoints but the UI
+only ever called 46 of them. `tests/full-coverage.test.js` was added first so
+all ~70 have automated coverage, then the gaps were closed:
+
+- **Auth lifecycle** — silent access-token refresh (`lib/api.js` retries once
+  through `POST /auth/refresh` on a 401 instead of forcing a re-login), a real
+  server-side logout (`POST /auth/logout`), and full forgot/reset-password and
+  email-verification screens (previously all four endpoints were tested but
+  had no entry point in the UI).
+- **Goals** — the entire feature (CRUD + live progress) had zero UI; added a
+  goal form, list view, and dashboard widget (`features/Goals.jsx`).
+- **Social graph** — follow/unfollow, followers, and following worked
+  server-side with no button anywhere; added Follow/Unfollow to Community
+  search results and a Connections panel (Followers/Following tabs) in
+  Settings.
+- **Reminders** — added edit (previously add/delete only).
+- **Food table** — `POST/PUT/DELETE /api/foods` were tested but unreachable;
+  the meal-logging search dropdown can now create a reusable food and edit or
+  delete ones the user owns.
+
+Left intentionally unwired: `GET /forum/:id` and `GET /routines/:id` (the list
+views already return full objects, so a detail fetch is pure waste) and
+`POST /foods/preview` (the client already mirrors that scaling math locally
+for zero-latency live previews in `lib/calc.js` — routing it through the
+network would be a UX regression, not a fix).

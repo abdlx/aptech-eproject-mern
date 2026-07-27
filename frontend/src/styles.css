@@ -934,6 +934,15 @@ textarea:focus {
   padding: 12px 14px;
 }
 
+.form-hint {
+  color: var(--lime);
+  background: rgba(183, 255, 0, .1);
+  border: 1px solid rgba(183, 255, 0, .25);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: clamp(12px, 3vw, 14px);
+}
+
 .status-banner {
   position: relative;
   z-index: 1;
@@ -1168,6 +1177,26 @@ textarea:focus {
   color: #9da0a7;
 }
 
+.goals-widget {
+  display: grid;
+  gap: 14px;
+}
+
+.goals-widget .goal-widget-row p {
+  margin: 0 0 6px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  color: #d8dbe0;
+}
+
+.goals-widget .goal-widget-row p span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- Reports: two export cards side by side. --- */
 .report-actions {
   align-items: stretch;
@@ -1374,6 +1403,18 @@ textarea:focus {
   opacity: .58;
 }
 
+.side-list .admin-reply {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  color: #d8dbe0;
+  font-size: .88rem;
+}
+
+.admin-reply strong {
+  color: var(--lime);
+}
+
 .feedback-form {
   margin-bottom: 16px;
 }
@@ -1433,9 +1474,74 @@ textarea:focus {
   text-overflow: ellipsis;
 }
 
+.people-grid article p {
+  flex: 1 1 auto;
+}
+
 .people-grid small {
   color: #92959c;
   margin-top: 3px;
+}
+
+.follow-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(183, 255, 0, .4);
+  border-radius: 999px;
+  background: rgba(183, 255, 0, .12);
+  color: var(--lime);
+  font-size: clamp(11px, 2.8vw, 13px);
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.follow-btn.following {
+  background: rgba(255, 255, 255, .08);
+  border-color: rgba(255, 255, 255, .14);
+  color: #d5d8de;
+}
+
+.connections-panel {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+}
+
+.connections-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.connections-tabs button {
+  flex: 1;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .04);
+  color: var(--muted);
+  padding: 10px;
+  font-weight: 700;
+  font-size: clamp(12px, 3vw, 14px);
+  cursor: pointer;
+}
+
+.connections-tabs button b {
+  margin-left: 6px;
+  color: inherit;
+}
+
+.connections-tabs button.active {
+  background: rgba(183, 255, 0, .13);
+  border-color: rgba(183, 255, 0, .4);
+  color: var(--lime);
+}
+
+.connections-panel .people-grid {
+  padding: 0;
+  margin-bottom: 0;
 }
 
 .person-avatar,
@@ -2216,10 +2322,65 @@ textarea:focus {
   border-bottom: 0;
 }
 
+.food-result-custom + .food-result-custom {
+  border-top: 1px solid var(--line);
+}
+
 .food-hint {
   padding: 8px 14px;
   font-size: .82rem;
   color: var(--muted);
+}
+
+/* A search result the user owns gets inline edit/delete alongside it. */
+.food-result-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--line);
+}
+
+.food-result-row .food-result {
+  border-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.food-result-owner-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 10px;
+  flex: 0 0 auto;
+}
+
+.food-result-owner-actions button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 7px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+}
+
+.food-result-owner-actions button:hover {
+  background: rgba(255, 255, 255, .08);
+  color: #f5f6f8;
+}
+
+.food-edit-form {
+  display: grid;
+  gap: clamp(10px, 2.6vw, 14px);
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #0b0d10;
+}
+
+.food-edit-form h4 {
+  margin: 0;
+  font-size: clamp(14px, 3.6vw, 16px);
 }
 
 .food-rows {

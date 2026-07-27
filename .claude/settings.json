@@ -56,7 +56,23 @@
       "Bash(DISABLE_RATE_LIMIT=true timeout 150 node -e ' *)",
       "Bash(awk '/^function Dashboard/,/^function WorkoutView/' main.jsx)",
       "Bash(grep -n \"^\\\\.actions\\\\|^\\\\.action\\\\b\\\\|^\\\\.action[ ,{]\\\\|\\\\.action \" styles.css)",
-      "Bash(awk 'NR>=1700 && NR<=1830 && /@media/ {print NR\": \"$0}' styles.css)"
+      "Bash(awk 'NR>=1700 && NR<=1830 && /@media/ {print NR\": \"$0}' styles.css)",
+      "Bash(node --test)",
+      "Bash(DISABLE_RATE_LIMIT=true node --test)",
+      "Bash(DISABLE_RATE_LIMIT=true node --test tests/full-coverage.test.js)",
+      "Bash(sleep 3; cat /tmp/frontend.log)",
+      "Bash(taskkill //PID 8392 //F)",
+      "Bash(chromium-cli --help)",
+      "Bash(npm ls *)",
+      "Bash(npx --no-install playwright --version)",
+      "Bash(timeout 8 npx --yes playwright@1.62.0 --version)",
+      "Bash(grep -n \"goals\\\\b\\\\|GoalForm\\\\|GoalsView\\\\|removeRecord\\(\\\\`/goals\" main.jsx)",
+      "Bash(curl -s -o /dev/null -w \"frontend 5173 status: %{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(node \"C:\\\\Users\\\\Abdullah\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--code-aptech-assignment-Epro-MERN\\\\73c16607-773d-4ebc-961e-fbf7f5eb7e2a\\\\scratchpad\\\\verify-wiring.mjs\")",
+      "Bash(node \"C:\\\\Users\\\\Abdullah\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--code-aptech-assignment-Epro-MERN\\\\73c16607-773d-4ebc-961e-fbf7f5eb7e2a\\\\scratchpad\\\\cleanup-wiring-test.mjs\")",
+      "Bash(node _cleanup_wiring_test.mjs)",
+      "Bash(git -C /d/code/aptech-assignment/Epro_MERN status --short)",
+      "Bash(git -C /d/code/aptech-assignment/Epro_MERN diff --stat .claude/settings.json)"
     ],
     "additionalDirectories": [
       "\\tmp"

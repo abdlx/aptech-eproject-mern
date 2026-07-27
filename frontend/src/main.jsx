@@ -2,7 +2,10 @@
 // Original author: Munawwar (base Fitness Tracker UI).
 // Modified by: Abdullah — added the Live Feed (composer, posts, likes, comments),
 // routines + live workout sessions, the food-table meal editor, and real
-// per-user nutrition targets. See AUTHORS.md for details.
+// per-user nutrition targets. Later wired up every backend endpoint that had
+// no UI: Goals, follow/unfollow + Connections, reminder editing, the
+// forgot/reset-password and email-verify flows, and a real server-side logout.
+// See AUTHORS.md for details.
 // ============================================================================
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -11,8 +14,10 @@ import './styles.css';
 import Icon from './components/Icon.jsx';
 import MealForm from './features/MealForm.jsx';
 import { RoutineForm, RoutinesView, SessionView } from './features/Routines.jsx';
+import { GoalForm, GoalsView } from './features/Goals.jsx';
 import {
   API_BASE, AUTH_KEY, loadJson, saveJson, request, downloadReport, assetUrl,
+  setAuthState, onAuthRefresh,
 } from './lib/api.js';
 import {
   num, mealTotals, totalsFor, macroSplit, workoutVolume, setCounts, latestWeight,
@@ -53,11 +58,24 @@ function relativeTime(value) {
 }
 
 
+// Register/login share the credentials form; 'verify' is the interstitial shown
+// right after registering (since there's no real mail sender, the raw token
+// comes back on the response in dev — see EXPOSE_TOKENS in authController.js);
+// 'forgot'/'reset' walk through the same dev-token pattern for password reset.
 function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({ username: '', name: '', email: '', password: '' });
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pendingUser, setPendingUser] = useState(null);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetForm, setResetForm] = useState({ token: '', password: '' });
+  const [notice, setNotice] = useState('');
+
+  function finishAuth(user) {
+    saveJson(AUTH_KEY, user);
+    onAuth(user);
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -69,13 +87,124 @@ function AuthScreen({ onAuth }) {
         ? { email: form.email, password: form.password }
         : form;
       const user = await request(path, { method: 'POST', body: payload });
-      saveJson(AUTH_KEY, user);
-      onAuth(user);
+      if (mode === 'register' && user.verificationToken) {
+        // No mail sender in this app — offer to verify immediately with the
+        // token the register response carries in dev, rather than stranding
+        // the user on a link that was never actually emailed.
+        setPendingUser(user);
+        setMode('verify');
+      } else {
+        finishAuth(user);
+      }
     } catch (error) {
       setStatus(error.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function verifyNow() {
+    setLoading(true);
+    try {
+      await request('/auth/verify-email', { method: 'POST', body: { token: pendingUser.verificationToken } });
+      finishAuth({ ...pendingUser, isEmailVerified: true });
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitForgot(event) {
+    event.preventDefault();
+    setStatus('');
+    setNotice('');
+    setLoading(true);
+    try {
+      const data = await request('/auth/forgot-password', { method: 'POST', body: { email: forgotEmail } });
+      setResetForm({ token: data.resetToken || '', password: '' });
+      setNotice(data.resetToken
+        ? 'Reset token generated (shown below since this app has no mail sender configured).'
+        : 'If that email exists, a reset link has been sent.');
+      setMode('reset');
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitReset(event) {
+    event.preventDefault();
+    setStatus('');
+    setLoading(true);
+    try {
+      await request('/auth/reset-password', {
+        method: 'POST',
+        body: { token: resetForm.token, password: resetForm.password },
+      });
+      setNotice('Password reset. Log in with your new password.');
+      setForm({ ...form, email: forgotEmail, password: '' });
+      setMode('login');
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (mode === 'verify') {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card glass">
+          <div className="logo auth-logo">Fitness<span>Tracker</span></div>
+          <h1>Verify your email</h1>
+          <p>We&rsquo;d normally email a verification link to <strong>{pendingUser?.email}</strong>. This app doesn&rsquo;t send real email, so you can verify right now instead.</p>
+          {status && <p className="form-error">{status}</p>}
+          <div className="form-actions">
+            <button className="secondary-btn" type="button" onClick={() => finishAuth(pendingUser)}>Skip for now</button>
+            <button className="primary-btn" type="button" disabled={loading} onClick={verifyNow}><Icon name="check" size={18} />{loading ? 'Verifying...' : 'Verify now'}</button>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (mode === 'forgot') {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card glass">
+          <div className="logo auth-logo">Fitness<span>Tracker</span></div>
+          <h1>Reset your password</h1>
+          <p>Enter the email on your account and we&rsquo;ll start a password reset.</p>
+          <form className="form-grid" onSubmit={submitForgot}>
+            <label>Email<input type="email" value={forgotEmail} onChange={(event) => setForgotEmail(event.target.value)} required autoComplete="email" /></label>
+            {status && <p className="form-error">{status}</p>}
+            <button className="primary-btn" type="submit" disabled={loading}><Icon name="check" size={20} />{loading ? 'Sending...' : 'Send reset link'}</button>
+          </form>
+          <button className="link-btn" onClick={() => { setMode('login'); setStatus(''); }}>Back to log in</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (mode === 'reset') {
+    return (
+      <main className="auth-shell">
+        <section className="auth-card glass">
+          <div className="logo auth-logo">Fitness<span>Tracker</span></div>
+          <h1>Set a new password</h1>
+          {notice && <p className="form-hint">{notice}</p>}
+          <form className="form-grid" onSubmit={submitReset}>
+            <label>Reset token<input value={resetForm.token} onChange={(event) => setResetForm({ ...resetForm, token: event.target.value })} required placeholder="Paste the token from your email" /></label>
+            <label>New password<input type="password" value={resetForm.password} onChange={(event) => setResetForm({ ...resetForm, password: event.target.value })} required minLength="6" autoComplete="new-password" /></label>
+            {status && <p className="form-error">{status}</p>}
+            <button className="primary-btn" type="submit" disabled={loading}><Icon name="check" size={20} />{loading ? 'Saving...' : 'Reset password'}</button>
+          </form>
+          <button className="link-btn" onClick={() => { setMode('login'); setStatus(''); setNotice(''); }}>Back to log in</button>
+        </section>
+      </main>
+    );
   }
 
   return (
@@ -84,6 +213,7 @@ function AuthScreen({ onAuth }) {
         <div className="logo auth-logo">Fitness<span>Tracker</span></div>
         <h1>{mode === 'login' ? 'Welcome back' : 'Create your account'}</h1>
         <p>Connect to the fitness server to track workouts, meals, progress, reports, and reminders.</p>
+        {notice && <p className="form-hint">{notice}</p>}
         <form className="form-grid" onSubmit={submit}>
           {mode === 'register' && (
             <>
@@ -111,7 +241,8 @@ function AuthScreen({ onAuth }) {
             {loading ? 'Connecting...' : mode === 'login' ? 'Log in' : 'Register'}
           </button>
         </form>
-        <button className="link-btn" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
+        {mode === 'login' && <button className="link-btn" onClick={() => { setMode('forgot'); setStatus(''); setNotice(''); }}>Forgot password?</button>}
+        <button className="link-btn" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setStatus(''); setNotice(''); }}>
           {mode === 'login' ? 'Need an account? Register' : 'Already registered? Log in'}
         </button>
       </section>
@@ -486,8 +617,18 @@ function ProgressForm({ initial, onCancel, onSubmit }) {
   );
 }
 
-function ReminderForm({ onCancel, onSubmit }) {
-  const [form, setForm] = useState(emptyReminder);
+// Local datetime-input value (no timezone suffix) for the stored ISO time.
+function toLocalDateTimeInput(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function ReminderForm({ initial, onCancel, onSubmit }) {
+  const [form, setForm] = useState(() => (initial
+    ? { title: initial.title, type: initial.type, time: toLocalDateTimeInput(initial.time) }
+    : emptyReminder));
 
   function submit(event) {
     event.preventDefault();
@@ -496,7 +637,7 @@ function ReminderForm({ onCancel, onSubmit }) {
 
   return (
     <form className="glass data-form" onSubmit={submit}>
-      <h3>Add reminder</h3>
+      <h3>{initial?._id ? 'Edit reminder' : 'Add reminder'}</h3>
       <label>Title<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required /></label>
       <label>Type<select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })}><option value="workout">Workout</option><option value="nutrition">Meal</option><option value="goal">Goal</option></select></label>
       <label>Time<input type="datetime-local" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} required /></label>
@@ -514,7 +655,7 @@ function FormActions({ onCancel }) {
   );
 }
 
-function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, activeWorkout, openForm, setView, onResume, onOpenSummary }) {
+function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, goals, activeWorkout, openForm, setView, onResume, onOpenSummary }) {
   const recent = [
     ...workouts.slice(0, 2).map((item) => ({
       id: `w-${item._id}`,
@@ -588,6 +729,7 @@ function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, a
         <button className="glass action" onClick={() => openForm('workout')}><span className="lime"><Icon name="dumbbell" /></span><b>Log</b><b>Workout</b></button>
         <button className="glass action" onClick={() => openForm('meal')}><span className="pink"><Icon name="utensils" /></span><b>Log</b><b>Meal</b></button>
         <button className="glass action" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" /></span><b>Update</b><b>Weight</b></button>
+        <button className="glass action" onClick={() => setView('goals')}><span className="cyan"><Icon name="chartPie" /></span><b>Set</b><b>Goal</b></button>
         <button className="glass action" onClick={() => setView('reports')}><span className="amber"><Icon name="chartPie" /></span><b>View</b><b>Reports</b></button>
       </section>
       <SectionTitle title="Recent Activity" action="View All" onAction={() => setView('workout')} />
@@ -601,6 +743,19 @@ function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, a
           </article>
         )) : <EmptyState icon="plus" title="No activity yet" text="Use quick actions to add your first workout, meal, or progress update." />}
       </section>
+      {!!goals.length && (
+        <>
+          <SectionTitle title="Goals" action="View All" onAction={() => setView('goals')} />
+          <section className="glass compact-list goals-widget">
+            {goals.slice(0, 3).map((goal) => (
+              <div className="goal-widget-row" key={goal._id}>
+                <p><Icon name="chartPie" size={18} /><span>{goal.title}</span>{goal.achieved && <i className="nav-dot" aria-hidden="true" />}</p>
+                <div className="meter"><i className={goal.achieved ? 'lime' : 'cyan'} style={{ width: `${goal.progressPercent ?? 0}%` }} /></div>
+              </div>
+            ))}
+          </section>
+        </>
+      )}
       {!!reminders.length && (
         <>
           <SectionTitle title="Upcoming Reminders" />
@@ -738,7 +893,24 @@ function ReportsView({ onExportCsv, onExportPdf, totals, workouts, nutrition }) 
   );
 }
 
-function CommunityView({ feedback, notifications, reminders, onFeedback, onReadNotification, onDeleteNotification, onDeleteReminder, onReminder, onSearchUsers }) {
+function FollowButton({ user, followingIds, onToggleFollow }) {
+  const following = followingIds.has(user._id);
+  return (
+    <button
+      type="button"
+      className={`follow-btn ${following ? 'following' : ''}`}
+      onClick={() => onToggleFollow(user)}
+    >
+      <Icon name={following ? 'check' : 'plus'} size={14} />{following ? 'Following' : 'Follow'}
+    </button>
+  );
+}
+
+function CommunityView({
+  feedback, notifications, reminders, currentUserId, followingIds, onFeedback,
+  onReadNotification, onDeleteNotification, onDeleteReminder, onEditReminder,
+  onReminder, onSearchUsers, onToggleFollow,
+}) {
   const [form, setForm] = useState({ subject: '', message: '' });
   const [userQuery, setUserQuery] = useState('');
   const [users, setUsers] = useState([]);
@@ -764,6 +936,7 @@ function CommunityView({ feedback, notifications, reminders, onFeedback, onReadN
         {users.map((user) => <article key={user._id}>
           <div className="person-avatar">{user.profilePicture ? <img src={assetUrl(user.profilePicture)} alt="" /> : user.name?.slice(0, 1).toUpperCase()}</div>
           <p><strong>{user.name}</strong><small>@{user.username}</small></p>
+          {user._id !== currentUserId && <FollowButton user={user} followingIds={followingIds} onToggleFollow={onToggleFollow} />}
         </article>)}
       </section>}
       <form className="glass data-form feedback-form" onSubmit={submit}>
@@ -790,7 +963,10 @@ function CommunityView({ feedback, notifications, reminders, onFeedback, onReadN
           {reminders.length ? reminders.map((item) => (
             <article key={item._id}>
               <p>{item.title}</p><small>{item.type} · {new Date(item.time).toLocaleString()}</small>
-              <div className="mini-actions"><button onClick={() => onDeleteReminder(item._id)}><Icon name="trash" size={16} />Delete</button></div>
+              <div className="mini-actions">
+                <button onClick={() => onEditReminder(item)}><Icon name="edit" size={16} />Edit</button>
+                <button onClick={() => onDeleteReminder(item._id)}><Icon name="trash" size={16} />Delete</button>
+              </div>
             </article>
           )) : <EmptyState icon="clock" title="No reminders" text="Add a workout, meal, or goal reminder and keep it synced with your account." />}
         </div>
@@ -798,7 +974,12 @@ function CommunityView({ feedback, notifications, reminders, onFeedback, onReadN
       {!!feedback.length && (
         <section className="glass side-list">
           <div className="subheading"><h3>Your feedback</h3></div>
-          {feedback.map((item) => <article key={item._id}><p>{item.subject}</p><small>{item.status} · {relativeTime(item.createdAt)}</small></article>)}
+          {feedback.map((item) => (
+            <article key={item._id}>
+              <p>{item.subject}</p><small>{item.status} · {relativeTime(item.createdAt)}</small>
+              {item.adminReply && <p className="admin-reply"><strong>Support:</strong> {item.adminReply}</p>}
+            </article>
+          ))}
         </section>
       )}
     </Panel>
@@ -933,7 +1114,35 @@ function FeedView({ posts, workouts, currentUser, loading, hasMore, onCreate, on
   );
 }
 
-function SettingsView({ profile, summary, onSave, onSavePicture }) {
+function ConnectionsPanel({ followers, following, followingIds, onToggleFollow }) {
+  const [tab, setTab] = useState('followers');
+  const list = tab === 'followers' ? followers : following;
+
+  return (
+    <section className="glass connections-panel">
+      <div className="subheading"><h3>Connections</h3></div>
+      <div className="connections-tabs">
+        <button type="button" className={tab === 'followers' ? 'active' : ''} onClick={() => setTab('followers')}>Followers <b>{followers.length}</b></button>
+        <button type="button" className={tab === 'following' ? 'active' : ''} onClick={() => setTab('following')}>Following <b>{following.length}</b></button>
+      </div>
+      {list.length ? (
+        <div className="people-grid">
+          {list.map((user) => (
+            <article key={user._id}>
+              <div className="person-avatar">{user.profilePicture ? <img src={assetUrl(user.profilePicture)} alt="" /> : user.name?.slice(0, 1).toUpperCase()}</div>
+              <p><strong>{user.name}</strong><small>@{user.username}</small></p>
+              <FollowButton user={user} followingIds={followingIds} onToggleFollow={onToggleFollow} />
+            </article>
+          ))}
+        </div>
+      ) : (
+        <EmptyState icon="user" title={tab === 'followers' ? 'No followers yet' : 'Not following anyone yet'} text="Find athletes from the Community tab to connect with them." />
+      )}
+    </section>
+  );
+}
+
+function SettingsView({ profile, summary, followers, following, followingIds, onToggleFollow, onSave, onSavePicture }) {
   const [form, setForm] = useState({
     username: profile?.username || '',
     name: profile?.name || '',
@@ -988,6 +1197,7 @@ function SettingsView({ profile, summary, onSave, onSavePicture }) {
 
   return (
     <Panel title="Settings">
+      <ConnectionsPanel followers={followers} following={following} followingIds={followingIds} onToggleFollow={onToggleFollow} />
       <form className="glass data-form" onSubmit={submit}>
         <h3>Profile and preferences</h3>
         <div className="profile-editor">
@@ -1116,8 +1326,26 @@ function App() {
   const [showSummary, setShowSummary] = useState(false);
   // Today's consumed-vs-target rollup, computed server-side.
   const [summary, setSummary] = useState(null);
+  const [goals, setGoals] = useState([]);
+  const [followers, setFollowers] = useState([]);
+  const [following, setFollowing] = useState([]);
 
   const token = auth?.token;
+  const followingIds = useMemo(() => new Set(following.map((user) => user._id)), [following]);
+
+  // Keeps lib/api.js's silent-refresh logic aware of the current refresh
+  // token, and folds a rotation it performs back into React state so the next
+  // render's closures pick up the new access token instead of retrying with a
+  // stale one.
+  useEffect(() => {
+    setAuthState(auth);
+  }, [auth]);
+  useEffect(() => {
+    onAuthRefresh((next) => {
+      setAuth(next);
+      setAuthState(next);
+    });
+  }, []);
 
   useEffect(() => {
     if (token) loadAll();
@@ -1128,13 +1356,31 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, view]);
 
+  // The social graph is keyed off the profile's own id, which loadAll only
+  // learns once its own fetch resolves — so this runs as a second phase.
+  useEffect(() => {
+    if (!token || !profile?._id) return;
+    (async () => {
+      try {
+        const [followersData, followingData] = await Promise.all([
+          request(`/users/${profile._id}/followers`, { token }),
+          request(`/users/${profile._id}/following`, { token }),
+        ]);
+        setFollowers(followersData);
+        setFollowing(followingData);
+      } catch {
+        // Non-fatal — the Community/Settings follow UI just stays empty.
+      }
+    })();
+  }, [token, profile?._id]);
+
   async function loadAll() {
     setLoading(true);
     setStatus('');
     try {
       const [
         profileData, workoutData, nutritionData, progressData, notificationData,
-        feedbackData, reminderData, routineData, activeData, summaryData,
+        feedbackData, reminderData, routineData, goalData, activeData, summaryData,
       ] = await Promise.all([
         request('/users', { token }),
         request('/workouts', { token }),
@@ -1144,6 +1390,7 @@ function App() {
         request('/feedback', { token }).catch(() => []),
         request('/reminders', { token }),
         request('/routines', { token }).catch(() => []),
+        request('/goals', { token }).catch(() => []),
         // 204 when nothing is in flight; the request helper maps that to null.
         request('/workouts/active', { token }).catch(() => null),
         request('/nutrition/summary', { token }).catch(() => null),
@@ -1156,6 +1403,7 @@ function App() {
       setFeedback(feedbackData);
       setReminders(reminderData);
       setRoutines(routineData);
+      setGoals(goalData);
       setActiveWorkout(activeData);
       setSummary(summaryData);
     } catch (error) {
@@ -1169,7 +1417,13 @@ function App() {
     }
   }
 
-  function logout() {
+  async function logout() {
+    const refreshToken = auth?.refreshToken;
+    if (refreshToken) {
+      // Best-effort: revoke this session's refresh token server-side so it
+      // can't be replayed. Local logout proceeds either way.
+      await request('/auth/logout', { method: 'POST', body: { refreshToken } }).catch(() => {});
+    }
     localStorage.removeItem(AUTH_KEY);
     setAuth(null);
     setProfile(null);
@@ -1357,10 +1611,40 @@ function App() {
 
   async function saveReminder(payload) {
     await mutate(async () => {
-      await request('/reminders', { method: 'POST', body: payload, token });
+      const path = editing?._id ? `/reminders/${editing._id}` : '/reminders';
+      const method = editing?._id ? 'PUT' : 'POST';
+      await request(path, { method, body: payload, token });
       closeForm();
       await loadAll();
-    }, 'Reminder added.');
+    }, editing?._id ? 'Reminder updated.' : 'Reminder added.');
+  }
+
+  async function saveGoal(payload) {
+    await mutate(async () => {
+      const path = editing?._id ? `/goals/${editing._id}` : '/goals';
+      const method = editing?._id ? 'PUT' : 'POST';
+      await request(path, { method, body: payload, token });
+      closeForm();
+      await loadAll();
+    }, 'Goal saved.');
+  }
+
+  // Optimistic: the button flips immediately, then reconciles with the
+  // server. `user` only needs `_id`/`username`/`name`/`profilePicture` — the
+  // same shape returned by search, followers, and following.
+  async function toggleFollow(user) {
+    const wasFollowing = followingIds.has(user._id);
+    setFollowing((current) => (wasFollowing
+      ? current.filter((item) => item._id !== user._id)
+      : [...current, user]));
+    try {
+      await request(`/users/${user._id}/follow`, { method: wasFollowing ? 'DELETE' : 'POST', token });
+    } catch (error) {
+      setStatus(error.message);
+      setFollowing((current) => (wasFollowing
+        ? [...current, user]
+        : current.filter((item) => item._id !== user._id)));
+    }
   }
 
   async function deleteReminder(id) {
@@ -1559,7 +1843,7 @@ function App() {
       {status && <div className="status-banner">{status}</div>}
       {loading && <div className="status-banner">Loading fitness data...</div>}
 
-      {view === 'dashboard' && <Dashboard stats={stats} summary={summary} workouts={workouts} nutrition={nutrition} progress={progress} reminders={reminders} activeWorkout={activeWorkout} openForm={openForm} setView={setView} onResume={() => setView('session')} onOpenSummary={() => setShowSummary(true)} />}
+      {view === 'dashboard' && <Dashboard stats={stats} summary={summary} workouts={workouts} nutrition={nutrition} progress={progress} reminders={reminders} goals={goals} activeWorkout={activeWorkout} openForm={openForm} setView={setView} onResume={() => setView('session')} onOpenSummary={() => setShowSummary(true)} />}
       {view === 'routines' && (
         <Panel title="Routines" action="New routine" onAction={() => openForm('routine')}>
           <RoutinesView
@@ -1591,9 +1875,41 @@ function App() {
       {view === 'nutrition' && <NutritionView nutrition={filteredNutrition} onEdit={(item) => openForm('meal', item)} onDelete={(id) => removeRecord(`/nutrition/${id}`)} onAdd={() => openForm('meal')} search={mealSearch} setSearch={setMealSearch} mealType={mealType} setMealType={setMealType} />}
       {view === 'progress' && <ProgressView progress={progress} onEdit={(item) => openForm('progress', item)} onDelete={(id) => removeRecord(`/progress/${id}`)} onAdd={() => openForm('progress')} />}
       {view === 'reports' && <ReportsView onExportCsv={exportCsv} onExportPdf={exportPdf} totals={totals} workouts={workouts} nutrition={nutrition} />}
-      {view === 'community' && <CommunityView feedback={feedback} notifications={notifications} reminders={reminders} onFeedback={submitFeedback} onReadNotification={markNotificationRead} onDeleteNotification={deleteNotification} onDeleteReminder={deleteReminder} onReminder={() => openForm('reminder')} onSearchUsers={searchUsers} />}
+      {view === 'goals' && (
+        <Panel title="Goals" action="New goal" onAction={() => openForm('goal')}>
+          <GoalsView goals={goals} onEdit={(goal) => openForm('goal', goal)} onDelete={(id) => removeRecord(`/goals/${id}`)} onAdd={() => openForm('goal')} />
+        </Panel>
+      )}
+      {view === 'community' && (
+        <CommunityView
+          feedback={feedback}
+          notifications={notifications}
+          reminders={reminders}
+          currentUserId={profile?._id}
+          followingIds={followingIds}
+          onFeedback={submitFeedback}
+          onReadNotification={markNotificationRead}
+          onDeleteNotification={deleteNotification}
+          onDeleteReminder={deleteReminder}
+          onEditReminder={(item) => openForm('reminder', item)}
+          onReminder={() => openForm('reminder')}
+          onSearchUsers={searchUsers}
+          onToggleFollow={toggleFollow}
+        />
+      )}
       {view === 'feed' && <FeedView posts={feedPosts} workouts={workouts} currentUser={profile || auth} loading={feedLoading} hasMore={feedHasMore} onCreate={createPost} onLike={toggleLike} onComment={commentOnPost} onDelete={deletePost} onLoadMore={() => loadFeed(feedPage + 1)} />}
-      {view === 'settings' && <SettingsView profile={profile || auth} summary={summary} onSave={saveProfile} onSavePicture={saveProfilePicture} />}
+      {view === 'settings' && (
+        <SettingsView
+          profile={profile || auth}
+          summary={summary}
+          followers={followers}
+          following={following}
+          followingIds={followingIds}
+          onToggleFollow={toggleFollow}
+          onSave={saveProfile}
+          onSavePicture={saveProfilePicture}
+        />
+      )}
 
       {showSummary && summary && (
         <NutritionSummaryModal
@@ -1608,9 +1924,10 @@ function App() {
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           {formType === 'workout' && <WorkoutForm initial={editing} onCancel={closeForm} onSubmit={saveWorkout} />}
           {formType === 'routine' && <RoutineForm initial={editing} onCancel={closeForm} onSubmit={saveRoutine} />}
-          {formType === 'meal' && <MealForm initial={editing} token={token} onCancel={closeForm} onSubmit={saveMeal} />}
+          {formType === 'meal' && <MealForm initial={editing} token={token} currentUserId={profile?._id} onCancel={closeForm} onSubmit={saveMeal} />}
           {formType === 'progress' && <ProgressForm initial={mappedProgress} onCancel={closeForm} onSubmit={saveProgress} />}
-          {formType === 'reminder' && <ReminderForm onCancel={closeForm} onSubmit={saveReminder} />}
+          {formType === 'reminder' && <ReminderForm initial={editing} onCancel={closeForm} onSubmit={saveReminder} />}
+          {formType === 'goal' && <GoalForm initial={editing} onCancel={closeForm} onSubmit={saveGoal} />}
         </div>
       )}
 
@@ -1640,6 +1957,7 @@ function App() {
               <button className="add-menu-item" onClick={() => openForm('meal')}><span className="pink"><Icon name="utensils" size={26} /></span><b>Meal</b></button>
               <button className="add-menu-item" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" size={26} /></span><b>Weight</b></button>
               <button className="add-menu-item" onClick={() => openForm('reminder')}><span className="amber"><Icon name="bell" size={26} /></span><b>Reminder</b></button>
+              <button className="add-menu-item" onClick={() => openForm('goal')}><span className="cyan"><Icon name="chartPie" size={26} /></span><b>Goal</b></button>
             </div>
             <button className="secondary-btn add-menu-cancel" onClick={() => setAddMenu(false)}><Icon name="x" size={18} />Cancel</button>
           </div>

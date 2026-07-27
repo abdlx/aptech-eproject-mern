@@ -1,6 +1,8 @@
 // ============================================================================
 // Author: Abdullah — created this file (feature work added on top of the original
-// Fitness Tracker frontend by Munawwar).
+// Fitness Tracker frontend by Munawwar). Later extended so a user can create,
+// edit, and delete their own food-table entries (POST/PUT/DELETE /api/foods)
+// directly from the search dropdown, not just search the shipped table.
 // ============================================================================
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -28,12 +30,119 @@ const emptyRow = () => ({
   fats: '',
 });
 
+const emptyFoodDraft = (name = '') => ({
+  name,
+  brand: '',
+  category: 'other',
+  basisUnit: 'g',
+  calories: '',
+  protein: '',
+  carbs: '',
+  fats: '',
+  gramsPerServing: '',
+  servingLabel: '',
+});
+
+const FOOD_CATEGORIES = ['protein', 'carb', 'vegetable', 'fruit', 'dairy', 'fat', 'drink', 'snack', 'meal', 'other'];
+
+// Create/edit a row in the user's own food table (POST/PUT /api/foods — the
+// server only lets an owner edit or delete their own entries; the shipped
+// global table is read-only). Distinct from "add manually" below, which just
+// types one-off macros onto this single meal instead of saving a reusable food.
+function FoodEditForm({ initial, initialName, token, onCancel, onSaved }) {
+  const [form, setForm] = useState(() => (initial ? {
+    name: initial.name,
+    brand: initial.brand || '',
+    category: initial.category || 'other',
+    basisUnit: initial.basisUnit || 'g',
+    calories: initial.per100.calories,
+    protein: initial.per100.protein || '',
+    carbs: initial.per100.carbs || '',
+    fats: initial.per100.fats || '',
+    gramsPerServing: initial.gramsPerServing || '',
+    servingLabel: initial.servingLabel || '',
+  } : emptyFoodDraft(initialName)));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    const payload = {
+      name: form.name,
+      brand: form.brand,
+      category: form.category,
+      basisUnit: form.basisUnit,
+      per100: {
+        calories: num(form.calories),
+        protein: num(form.protein),
+        carbs: num(form.carbs),
+        fats: num(form.fats),
+      },
+      ...(num(form.gramsPerServing) ? { gramsPerServing: num(form.gramsPerServing), servingLabel: form.servingLabel } : {}),
+    };
+    try {
+      const saved = initial
+        ? await request(`/foods/${initial._id}`, { method: 'PUT', body: payload, token })
+        : await request('/foods', { method: 'POST', body: payload, token });
+      onSaved(saved);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form className="food-edit-form" onSubmit={submit}>
+      <h4>{initial ? 'Edit your food' : 'Create a food'}</h4>
+      <div className="form-row">
+        <label>Name<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label>
+        <label>Brand<input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} /></label>
+      </div>
+      <div className="form-row">
+        <label>Category
+          <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+            {FOOD_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
+        <label>Basis
+          <select value={form.basisUnit} onChange={(e) => setForm({ ...form, basisUnit: e.target.value })}>
+            <option value="g">per 100 g</option>
+            <option value="ml">per 100 ml</option>
+          </select>
+        </label>
+      </div>
+      <div className="form-row">
+        <label>Calories<input type="number" min="0" step="any" value={form.calories} onChange={(e) => setForm({ ...form, calories: e.target.value })} required /></label>
+        <label>Protein<input type="number" min="0" step="any" value={form.protein} onChange={(e) => setForm({ ...form, protein: e.target.value })} /></label>
+        <label>Carbs<input type="number" min="0" step="any" value={form.carbs} onChange={(e) => setForm({ ...form, carbs: e.target.value })} /></label>
+        <label>Fats<input type="number" min="0" step="any" value={form.fats} onChange={(e) => setForm({ ...form, fats: e.target.value })} /></label>
+      </div>
+      <div className="form-row">
+        <label>Grams/serving (optional)<input type="number" min="0" step="any" value={form.gramsPerServing} onChange={(e) => setForm({ ...form, gramsPerServing: e.target.value })} /></label>
+        <label>Serving label<input value={form.servingLabel} onChange={(e) => setForm({ ...form, servingLabel: e.target.value })} placeholder="1 scoop" /></label>
+      </div>
+      {error && <p className="food-row-warn">{error}</p>}
+      <div className="form-actions">
+        <button type="button" className="secondary-btn" onClick={onCancel}><Icon name="x" size={16} />Cancel</button>
+        <button type="submit" className="primary-btn" disabled={saving}><Icon name="save" size={16} />{saving ? 'Saving...' : 'Save food'}</button>
+      </div>
+    </form>
+  );
+}
+
 // Type-ahead against /api/foods. Debounced so it does not fire per keystroke.
-function FoodSearch({ token, onPick, onCustom }) {
+// Also the entry point for managing the user's own food-table entries: search
+// results the user owns get inline edit/delete, and the dropdown offers to
+// create a new one from the current query.
+function FoodSearch({ token, currentUserId, onPick, onCustom }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [editingFood, setEditingFood] = useState(null); // null | 'new' | a Food doc
   const boxRef = useRef(null);
 
   useEffect(() => {
@@ -59,11 +168,44 @@ function FoodSearch({ token, onPick, onCustom }) {
   // Close the dropdown on an outside click.
   useEffect(() => {
     function onDocClick(event) {
-      if (boxRef.current && !boxRef.current.contains(event.target)) setOpen(false);
+      if (boxRef.current && !boxRef.current.contains(event.target)) {
+        setOpen(false);
+        setEditingFood(null);
+      }
     }
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, []);
+
+  async function deleteOwnFood(food, event) {
+    event.stopPropagation();
+    if (!window.confirm(`Remove "${food.name}" from your food table?`)) return;
+    try {
+      await request(`/foods/${food._id}`, { method: 'DELETE', token });
+      setResults((current) => current.filter((item) => item._id !== food._id));
+    } catch {
+      // Leave it in the results; the user can retry the delete.
+    }
+  }
+
+  if (editingFood) {
+    return (
+      <div className="food-search" ref={boxRef}>
+        <FoodEditForm
+          initial={editingFood === 'new' ? null : editingFood}
+          initialName={query.trim()}
+          token={token}
+          onCancel={() => setEditingFood(null)}
+          onSaved={(saved) => {
+            setEditingFood(null);
+            setOpen(false);
+            setQuery('');
+            onPick(saved);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="food-search" ref={boxRef}>
@@ -80,29 +222,47 @@ function FoodSearch({ token, onPick, onCustom }) {
         <div className="food-results">
           {loading && <p className="food-hint">Searching…</p>}
           {!loading && !results.length && <p className="food-hint">No match in the food table.</p>}
-          {results.map((food) => (
-            <button
-              type="button"
-              key={food._id}
-              className="food-result"
-              onClick={() => { onPick(food); setQuery(''); setResults([]); setOpen(false); }}
-            >
-              <span className="food-result-name">
-                {food.name}{food.brand ? <small> · {food.brand}</small> : null}
-              </span>
-              <span className="food-result-macros">
-                {Math.round(food.per100.calories)} kcal
-                <small> /100{food.basisUnit}</small>
-              </span>
-            </button>
-          ))}
+          {results.map((food) => {
+            const owned = currentUserId && String(food.owner) === String(currentUserId);
+            return (
+              <div className="food-result-row" key={food._id}>
+                <button
+                  type="button"
+                  className="food-result"
+                  onClick={() => { onPick(food); setQuery(''); setResults([]); setOpen(false); }}
+                >
+                  <span className="food-result-name">
+                    {food.name}{food.brand ? <small> · {food.brand}</small> : null}
+                  </span>
+                  <span className="food-result-macros">
+                    {Math.round(food.per100.calories)} kcal
+                    <small> /100{food.basisUnit}</small>
+                  </span>
+                </button>
+                {owned && (
+                  <span className="food-result-owner-actions">
+                    <button type="button" aria-label={`Edit ${food.name}`} onClick={(event) => { event.stopPropagation(); setEditingFood(food); }}><Icon name="edit" size={14} /></button>
+                    <button type="button" aria-label={`Delete ${food.name}`} onClick={(event) => deleteOwnFood(food, event)}><Icon name="trash" size={14} /></button>
+                  </span>
+                )}
+              </div>
+            );
+          })}
           <button
             type="button"
             className="food-result food-result-custom"
             onClick={() => { onCustom(query.trim()); setQuery(''); setOpen(false); }}
           >
             <Icon name="plus" size={16} />
-            <span>Add &ldquo;{query.trim() || 'custom food'}&rdquo; manually</span>
+            <span>Add &ldquo;{query.trim() || 'custom food'}&rdquo; to this meal only</span>
+          </button>
+          <button
+            type="button"
+            className="food-result food-result-custom"
+            onClick={() => setEditingFood('new')}
+          >
+            <Icon name="list" size={16} />
+            <span>Create &ldquo;{query.trim() || 'a food'}&rdquo; in my food table</span>
           </button>
         </div>
       ) : null}
@@ -201,7 +361,7 @@ function FoodRow({ row, onChange, onRemove }) {
   );
 }
 
-export default function MealForm({ initial, token, onCancel, onSubmit }) {
+export default function MealForm({ initial, token, currentUserId, onCancel, onSubmit }) {
   const [mealType, setMealType] = useState(initial?.mealType || 'breakfast');
   const [rows, setRows] = useState(() => {
     if (!initial?.foods?.length) return [emptyRow()];
@@ -308,7 +468,7 @@ export default function MealForm({ initial, token, onCancel, onSubmit }) {
         </select>
       </label>
 
-      <FoodSearch token={token} onPick={addLinked} onCustom={addCustom} />
+      <FoodSearch token={token} currentUserId={currentUserId} onPick={addLinked} onCustom={addCustom} />
 
       <div className="food-rows">
         {rows.map((row) => (
