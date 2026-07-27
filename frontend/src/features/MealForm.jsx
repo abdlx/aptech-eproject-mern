@@ -9,6 +9,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { request } from '../lib/api.js';
 import { num, resolveEntry, sumMacros, UNIT_OPTIONS } from '../lib/calc.js';
+import { WizardHeader } from './Wizard.jsx';
+
+const MEAL_TYPES = [
+  { value: 'breakfast', label: 'Breakfast', color: 'amber' },
+  { value: 'lunch', label: 'Lunch', color: 'lime' },
+  { value: 'dinner', label: 'Dinner', color: 'pink' },
+  { value: 'snack', label: 'Snack', color: 'cyan' },
+];
 
 // Replaces the old single-food form, which had no food list, ignored the
 // quantity it collected, and made the user type calories from memory.
@@ -361,7 +369,12 @@ function FoodRow({ row, onChange, onRemove }) {
   );
 }
 
-export default function MealForm({ initial, token, currentUserId, onCancel, onSubmit }) {
+// Three screens instead of one long form: pick the meal type (auto-advances
+// on tap), then search/add foods watching them land in the list, then
+// review the totals before saving. Editing an existing meal goes through the
+// same flow, pre-filled, starting at the meal-type screen.
+export default function MealWizard({ initial, token, currentUserId, onCancel, onSubmit }) {
+  const [step, setStep] = useState(0);
   const [mealType, setMealType] = useState(initial?.mealType || 'breakfast');
   const [rows, setRows] = useState(() => {
     if (!initial?.foods?.length) return [emptyRow()];
@@ -432,72 +445,121 @@ export default function MealForm({ initial, token, currentUserId, onCancel, onSu
     setRows((current) => [...current, { ...emptyRow(), name }]);
   }
 
-  function submit(event) {
-    event.preventDefault();
-    const foods = rows
-      .filter((row) => (row.food || row.name) && num(row.quantity) > 0)
-      .map((row) => (row.food
-        // Linked: send the reference and portion only. The server rescales from
-        // the food table, so the client cannot post inconsistent macros.
-        ? { food: row.food._id, name: row.food.name, quantity: num(row.quantity), unit: row.unit }
-        : {
-          name: row.name,
-          quantity: num(row.quantity),
-          unit: row.unit,
-          calories: num(row.calories),
-          protein: num(row.protein),
-          carbs: num(row.carbs),
-          fats: num(row.fats),
-        }));
+  const validRows = rows.filter((row) => (row.food || row.name) && num(row.quantity) > 0);
+
+  function back() {
+    if (step === 0) onCancel();
+    else setStep((current) => current - 1);
+  }
+
+  function submit() {
+    const foods = validRows.map((row) => (row.food
+      // Linked: send the reference and portion only. The server rescales from
+      // the food table, so the client cannot post inconsistent macros.
+      ? { food: row.food._id, name: row.food.name, quantity: num(row.quantity), unit: row.unit }
+      : {
+        name: row.name,
+        quantity: num(row.quantity),
+        unit: row.unit,
+        calories: num(row.calories),
+        protein: num(row.protein),
+        carbs: num(row.carbs),
+        fats: num(row.fats),
+      }));
 
     if (!foods.length) return;
     onSubmit({ mealType, foods });
   }
 
+  const subtitles = ['What meal is this?', 'Search or add what you ate', 'Review before saving'];
+
   return (
-    <form className="glass data-form meal-form" onSubmit={submit}>
-      <h3>{initial?._id ? 'Edit meal' : 'Log meal'}</h3>
+    <section className="panel-view wizard">
+      <WizardHeader
+        title={initial?._id ? 'Edit meal' : 'Log meal'}
+        subtitle={subtitles[step]}
+        step={step}
+        totalSteps={3}
+        onBack={back}
+      />
 
-      <label>
-        Meal type
-        <select value={mealType} onChange={(event) => setMealType(event.target.value)}>
-          <option value="breakfast">Breakfast</option>
-          <option value="lunch">Lunch</option>
-          <option value="dinner">Dinner</option>
-          <option value="snack">Snack</option>
-        </select>
-      </label>
-
-      <FoodSearch token={token} currentUserId={currentUserId} onPick={addLinked} onCustom={addCustom} />
-
-      <div className="food-rows">
-        {rows.map((row) => (
-          <FoodRow
-            key={row.key}
-            row={row}
-            onChange={(next) => updateRow(row.key, next)}
-            onRemove={() => setRows((current) => (
-              current.length > 1 ? current.filter((item) => item.key !== row.key) : [emptyRow()]
+      {step === 0 && (
+        <div className="wizard-body">
+          <div className="meal-type-grid">
+            {MEAL_TYPES.map((type) => (
+              <button
+                type="button"
+                key={type.value}
+                className={`meal-type-card glass ${mealType === type.value ? 'selected' : ''}`}
+                onClick={() => { setMealType(type.value); setStep(1); }}
+              >
+                <span className={type.color}><Icon name="utensils" size={26} /></span>
+                <b>{type.label}</b>
+              </button>
             ))}
-          />
-        ))}
-      </div>
+          </div>
+        </div>
+      )}
 
-      <button type="button" className="link-btn compact add-row" onClick={() => addCustom('')}>
-        <Icon name="plus" size={16} /> Add another food
-      </button>
+      {step === 1 && (
+        <div className="wizard-body">
+          <FoodSearch token={token} currentUserId={currentUserId} onPick={addLinked} onCustom={addCustom} />
 
-      <div className="meal-totals">
-        <strong>{totals.calories} kcal</strong>
-        <span>P {totals.protein}g</span>
-        <span>C {totals.carbs}g</span>
-        <span>F {totals.fats}g</span>
-      </div>
+          <div className="food-rows">
+            {rows.map((row) => (
+              <FoodRow
+                key={row.key}
+                row={row}
+                onChange={(next) => updateRow(row.key, next)}
+                onRemove={() => setRows((current) => (
+                  current.length > 1 ? current.filter((item) => item.key !== row.key) : [emptyRow()]
+                ))}
+              />
+            ))}
+          </div>
 
-      <div className="form-actions">
-        <button className="secondary-btn" type="button" onClick={onCancel}><Icon name="x" size={18} />Cancel</button>
-        <button className="primary-btn" type="submit"><Icon name="save" size={18} />Save meal</button>
-      </div>
-    </form>
+          <button type="button" className="link-btn compact add-row" onClick={() => addCustom('')}>
+            <Icon name="plus" size={16} /> Add another food
+          </button>
+
+          <div className="wizard-footer">
+            <button className="primary-btn wizard-next" type="button" disabled={!validRows.length} onClick={() => setStep(2)}>
+              Next<Icon name="forward" size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="wizard-body">
+          <div className="wizard-review glass">
+            <span className="pill pink-fill">{mealType}</span>
+            <ul className="meal-foods">
+              {validRows.map((row) => {
+                const resolved = resolveEntry(row, row.food);
+                return (
+                  <li key={row.key}>
+                    <span>{row.food ? row.food.name : row.name}</span>
+                    <small>{row.quantity}{row.unit === 'serving' ? ' serving' : row.unit} · {resolved.calories} kcal</small>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="meal-totals">
+              <strong>{totals.calories} kcal</strong>
+              <span>P {totals.protein}g</span>
+              <span>C {totals.carbs}g</span>
+              <span>F {totals.fats}g</span>
+            </div>
+          </div>
+
+          <div className="wizard-footer">
+            <button className="primary-btn wizard-next" type="button" onClick={submit}>
+              <Icon name="save" size={18} />Save meal
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

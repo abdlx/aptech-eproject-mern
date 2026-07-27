@@ -12,9 +12,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles.css';
 import Icon from './components/Icon.jsx';
-import MealForm from './features/MealForm.jsx';
-import { RoutineForm, RoutinesView, SessionView } from './features/Routines.jsx';
+import MealWizard from './features/MealForm.jsx';
+import { RoutineWizard, RoutinesView, SessionView } from './features/Routines.jsx';
 import { GoalForm, GoalsView } from './features/Goals.jsx';
+import { WizardHeader, ExerciseQuickAdd } from './features/Wizard.jsx';
 import {
   API_BASE, AUTH_KEY, loadJson, saveJson, request, downloadReport, assetUrl,
   setAuthState, onAuthRefresh,
@@ -463,7 +464,17 @@ function EmptyState({ icon, title, text }) {
 // Quick log for a workout that already happened. Routines cover the "plan it,
 // then track it live" path; this is the after-the-fact entry, but unlike the
 // original version it takes as many exercises as you actually did.
-function WorkoutForm({ initial, onCancel, onSubmit }) {
+const WORKOUT_EXERCISE_FIELDS = [
+  { key: 'sets', label: 'Sets', default: '', min: 0 },
+  { key: 'reps', label: 'Reps', default: '', min: 0 },
+  { key: 'weight', label: 'Weight kg', default: '', min: 0, step: 'any' },
+];
+
+// A 3-screen wizard, same shape as RoutineWizard: name & details, then add
+// exercises one at a time (actual sets/reps/weight, since this logs a
+// workout already done), then review before saving.
+function WorkoutWizard({ initial, onCancel, onSubmit }) {
+  const [step, setStep] = useState(0);
   const [name, setName] = useState(initial?.name || '');
   const [category, setCategory] = useState(initial?.category || 'strength');
   const [tags, setTags] = useState((initial?.tags || []).join(', '));
@@ -477,31 +488,35 @@ function WorkoutForm({ initial, onCancel, onSubmit }) {
         weight: exercise.weight ?? '',
         notes: exercise.notes || '',
       }))
-      : [{ key: 'first', name: '', sets: '', reps: '', weight: '', notes: '' }]
+      : []
   ));
 
   const volume = exercises.reduce((sum, exercise) => (
     sum + num(exercise.sets) * num(exercise.reps) * num(exercise.weight)
   ), 0);
 
-  function update(key, patch) {
-    setExercises((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+  function addExercise(entry) {
+    setExercises((current) => [...current, { key: Math.random().toString(36).slice(2), ...entry }]);
   }
 
-  function submit(event) {
-    event.preventDefault();
-    const cleaned = exercises
-      .filter((exercise) => exercise.name.trim())
-      .map((exercise, index) => ({
-        name: exercise.name.trim(),
-        sets: num(exercise.sets),
-        reps: num(exercise.reps),
-        weight: num(exercise.weight),
-        notes: exercise.notes,
-        order: index,
-      }));
-    if (!cleaned.length) return;
+  function removeExercise(key) {
+    setExercises((current) => current.filter((item) => item.key !== key));
+  }
 
+  function back() {
+    if (step === 0) onCancel();
+    else setStep((current) => current - 1);
+  }
+
+  function submit() {
+    const cleaned = exercises.map((exercise, index) => ({
+      name: exercise.name,
+      sets: num(exercise.sets),
+      reps: num(exercise.reps),
+      weight: num(exercise.weight),
+      notes: exercise.notes,
+      order: index,
+    }));
     onSubmit({
       name,
       category,
@@ -510,70 +525,119 @@ function WorkoutForm({ initial, onCancel, onSubmit }) {
     });
   }
 
+  const subtitles = ['Name it and set the basics', 'Add each exercise you did', 'Review before saving'];
+
   return (
-    <form className="glass data-form" onSubmit={submit}>
-      <h3>{initial?._id ? 'Edit workout' : 'Log workout'}</h3>
-      <label>Workout name<input value={name} onChange={(e) => setName(e.target.value)} required /></label>
-      <div className="form-row">
-        <label>Category
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="strength">Strength</option>
-            <option value="cardio">Cardio</option>
-            <option value="flexibility">Flexibility</option>
-            <option value="other">Other</option>
-          </select>
-        </label>
-        <label>Tags<input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="push, chest" /></label>
-      </div>
+    <section className="panel-view wizard">
+      <WizardHeader
+        title={initial?._id ? 'Edit workout' : 'Log workout'}
+        subtitle={subtitles[step]}
+        step={step}
+        totalSteps={3}
+        onBack={back}
+      />
 
-      <div className="exercise-rows">
-        {exercises.map((exercise, index) => (
-          <div className="exercise-row" key={exercise.key}>
-            <div className="exercise-row-head">
-              <span className="exercise-index">{index + 1}</span>
-              <input value={exercise.name} onChange={(e) => update(exercise.key, { name: e.target.value })} placeholder="Exercise name" required />
-              <div className="exercise-row-tools">
-                <button
-                  type="button"
-                  onClick={() => setExercises((current) => (
-                    current.length > 1 ? current.filter((item) => item.key !== exercise.key) : current
-                  ))}
-                  aria-label="Remove exercise"
-                ><Icon name="x" size={15} /></button>
-              </div>
-            </div>
-            <div className="form-row">
-              <label>Sets<input type="number" min="0" value={exercise.sets} onChange={(e) => update(exercise.key, { sets: e.target.value })} /></label>
-              <label>Reps<input type="number" min="0" value={exercise.reps} onChange={(e) => update(exercise.key, { reps: e.target.value })} /></label>
-              <label>Weight kg<input type="number" min="0" step="any" value={exercise.weight} onChange={(e) => update(exercise.key, { weight: e.target.value })} /></label>
-            </div>
-            <label>Notes<input value={exercise.notes} onChange={(e) => update(exercise.key, { notes: e.target.value })} /></label>
+      {step === 0 && (
+        <div className="wizard-body">
+          <label className="wizard-name-label">
+            Workout name
+            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} required />
+          </label>
+          <div className="form-row">
+            <label>Category
+              <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option value="strength">Strength</option>
+                <option value="cardio">Cardio</option>
+                <option value="flexibility">Flexibility</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label>Tags<input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="push, chest" /></label>
           </div>
-        ))}
-      </div>
+          <div className="wizard-footer">
+            <button className="primary-btn wizard-next" type="button" disabled={!name.trim()} onClick={() => setStep(1)}>
+              Next<Icon name="forward" size={18} />
+            </button>
+          </div>
+        </div>
+      )}
 
-      <button
-        type="button"
-        className="link-btn compact add-row"
-        onClick={() => setExercises((current) => [...current, {
-          key: Math.random().toString(36).slice(2), name: '', sets: '', reps: '', weight: '', notes: '',
-        }])}
-      >
-        <Icon name="plus" size={16} /> Add exercise
-      </button>
+      {step === 1 && (
+        <div className="wizard-body">
+          <div className="exercise-rows">
+            {exercises.map((exercise, index) => (
+              <div className="exercise-row" key={exercise.key}>
+                <div className="exercise-row-head">
+                  <span className="exercise-index">{index + 1}</span>
+                  <span className="exercise-row-name">{exercise.name}</span>
+                  <div className="exercise-row-tools">
+                    <button type="button" onClick={() => removeExercise(exercise.key)} aria-label="Remove exercise"><Icon name="x" size={15} /></button>
+                  </div>
+                </div>
+                <p className="exercise-row-meta">
+                  {exercise.sets || 0} × {exercise.reps || 0}{num(exercise.weight) ? ` @ ${exercise.weight}kg` : ''}
+                  {exercise.notes ? ` · ${exercise.notes}` : ''}
+                </p>
+              </div>
+            ))}
+            {!exercises.length && <p className="food-hint">No exercises added yet — add your first one below.</p>}
+          </div>
 
-      <div className="meal-totals">
-        <strong>{Math.round(volume).toLocaleString()} kg</strong>
-        <span>total volume</span>
-      </div>
+          <ExerciseQuickAdd fields={WORKOUT_EXERCISE_FIELDS} notesField={{ key: 'notes', label: 'Notes' }} onAdd={addExercise} />
 
-      <FormActions onCancel={onCancel} />
-    </form>
+          <div className="wizard-footer">
+            <button className="primary-btn wizard-next" type="button" disabled={!exercises.length} onClick={() => setStep(2)}>
+              Next<Icon name="forward" size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="wizard-body">
+          <div className="wizard-review glass">
+            <h3>{name}</h3>
+            <div className="record-heading">
+              <span className="pill">{category}</span>
+              {!!tags.trim() && <span className="pill cyan-fill">{tags}</span>}
+            </div>
+            <ul className="routine-exercises">
+              {exercises.map((exercise) => (
+                <li key={exercise.key}>
+                  <span>{exercise.name}</span>
+                  <small>{exercise.sets || 0} × {exercise.reps || 0}{num(exercise.weight) ? ` @ ${exercise.weight}kg` : ''}</small>
+                </li>
+              ))}
+            </ul>
+            <div className="meal-totals">
+              <strong>{Math.round(volume).toLocaleString()} kg</strong>
+              <span>total volume</span>
+            </div>
+          </div>
+
+          <div className="wizard-footer">
+            <button className="primary-btn wizard-next" type="button" onClick={submit}>
+              <Icon name="save" size={18} />Save workout
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
+// Weight is the one field that matters for a quick check-in — it's what the
+// progress chart, goals, and derived targets all key off. Everything else
+// (performance metrics, body measurements, notes) starts collapsed behind
+// "Add measurements & notes" instead of six extra fields up front, and only
+// opens by default when editing a record that already has some of that data.
 function ProgressForm({ initial, onCancel, onSubmit }) {
   const [form, setForm] = useState(initial || emptyProgress);
+  const [showMore, setShowMore] = useState(() => Boolean(initial && (
+    num(initial.runTime) || num(initial.liftingWeight) || num(initial.chest)
+    || num(initial.waist) || num(initial.hips) || num(initial.arms) || num(initial.legs)
+    || initial.notes
+  )));
 
   function submit(event) {
     event.preventDefault();
@@ -597,21 +661,34 @@ function ProgressForm({ initial, onCancel, onSubmit }) {
   return (
     <form className="glass data-form" onSubmit={submit}>
       <h3>{initial?._id ? 'Edit progress' : 'Update progress'}</h3>
-      <div className="form-row">
-        <label>Weight kg<input type="number" min="0" value={form.weight} onChange={(event) => setForm({ ...form, weight: event.target.value })} /></label>
-        <label>Run min<input type="number" min="0" value={form.runTime} onChange={(event) => setForm({ ...form, runTime: event.target.value })} /></label>
-        <label>Lift kg<input type="number" min="0" value={form.liftingWeight} onChange={(event) => setForm({ ...form, liftingWeight: event.target.value })} /></label>
-      </div>
-      <div className="form-row">
-        <label>Chest<input type="number" min="0" value={form.chest} onChange={(event) => setForm({ ...form, chest: event.target.value })} /></label>
-        <label>Waist<input type="number" min="0" value={form.waist} onChange={(event) => setForm({ ...form, waist: event.target.value })} /></label>
-        <label>Hips<input type="number" min="0" value={form.hips} onChange={(event) => setForm({ ...form, hips: event.target.value })} /></label>
-      </div>
-      <div className="form-row">
-        <label>Arms<input type="number" min="0" value={form.arms} onChange={(event) => setForm({ ...form, arms: event.target.value })} /></label>
-        <label>Legs<input type="number" min="0" value={form.legs} onChange={(event) => setForm({ ...form, legs: event.target.value })} /></label>
-      </div>
-      <label>Notes<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
+      <label className="wizard-name-label">
+        Weight kg
+        <input autoFocus type="number" min="0" step="any" placeholder="e.g. 78.5" value={form.weight} onChange={(event) => setForm({ ...form, weight: event.target.value })} required />
+      </label>
+
+      {showMore ? (
+        <>
+          <div className="form-row">
+            <label>Run min<input type="number" min="0" value={form.runTime} onChange={(event) => setForm({ ...form, runTime: event.target.value })} /></label>
+            <label>Lift kg<input type="number" min="0" value={form.liftingWeight} onChange={(event) => setForm({ ...form, liftingWeight: event.target.value })} /></label>
+          </div>
+          <div className="form-row">
+            <label>Chest<input type="number" min="0" value={form.chest} onChange={(event) => setForm({ ...form, chest: event.target.value })} /></label>
+            <label>Waist<input type="number" min="0" value={form.waist} onChange={(event) => setForm({ ...form, waist: event.target.value })} /></label>
+            <label>Hips<input type="number" min="0" value={form.hips} onChange={(event) => setForm({ ...form, hips: event.target.value })} /></label>
+          </div>
+          <div className="form-row">
+            <label>Arms<input type="number" min="0" value={form.arms} onChange={(event) => setForm({ ...form, arms: event.target.value })} /></label>
+            <label>Legs<input type="number" min="0" value={form.legs} onChange={(event) => setForm({ ...form, legs: event.target.value })} /></label>
+          </div>
+          <label>Notes<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
+        </>
+      ) : (
+        <button type="button" className="link-btn compact add-row" onClick={() => setShowMore(true)}>
+          <Icon name="plus" size={16} /> Add measurements & notes
+        </button>
+      )}
+
       <FormActions onCancel={onCancel} />
     </form>
   );
@@ -655,7 +732,7 @@ function FormActions({ onCancel }) {
   );
 }
 
-function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, goals, activeWorkout, openForm, setView, onResume, onOpenSummary }) {
+function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, goals, activeWorkout, openForm, openWizard, setView, onResume, onOpenSummary }) {
   const recent = [
     ...workouts.slice(0, 2).map((item) => ({
       id: `w-${item._id}`,
@@ -726,8 +803,8 @@ function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, g
       <SectionTitle title="Quick Actions" />
       <section className="actions">
         <button className="glass action" onClick={() => setView('routines')}><span className="lime featured-action"><Icon name="play" /></span><b>Start</b><b>Routine</b></button>
-        <button className="glass action" onClick={() => openForm('workout')}><span className="lime"><Icon name="dumbbell" /></span><b>Log</b><b>Workout</b></button>
-        <button className="glass action" onClick={() => openForm('meal')}><span className="pink"><Icon name="utensils" /></span><b>Log</b><b>Meal</b></button>
+        <button className="glass action" onClick={() => openWizard('workout')}><span className="lime"><Icon name="dumbbell" /></span><b>Log</b><b>Workout</b></button>
+        <button className="glass action" onClick={() => openWizard('meal')}><span className="pink"><Icon name="utensils" /></span><b>Log</b><b>Meal</b></button>
         <button className="glass action" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" /></span><b>Update</b><b>Weight</b></button>
         <button className="glass action" onClick={() => setView('goals')}><span className="cyan"><Icon name="chartPie" /></span><b>Set</b><b>Goal</b></button>
         <button className="glass action" onClick={() => setView('feed')}><span className="amber"><Icon name="feed" /></span><b>View</b><b>Feed</b></button>
@@ -821,14 +898,16 @@ function NutritionView({ nutrition, onEdit, onDelete, onAdd, search, setSearch, 
           <option value="">All meals</option><option value="breakfast">Breakfast</option><option value="lunch">Lunch</option><option value="dinner">Dinner</option><option value="snack">Snack</option>
         </select>
       </div>
-      <div className="record-grid">
+      <div className="record-grid meal-grid">
         {nutrition.length ? nutrition.map((meal) => {
           const totals = mealTotals(meal);
           return (
             <article className="record-card glass" key={meal._id}>
               <div className="record-heading"><span className="pill pink-fill">{meal.mealType}</span><time>{formatDate(meal.date)}</time></div>
-              <h3>{meal.foods?.map((food) => food.name).join(', ') || 'Meal'}</h3>
-              <p className="meal-kcal">{Math.round(totals.calories)} kcal</p>
+              <div className="meal-card-title-row">
+                <h3>{meal.foods?.map((food) => food.name).join(', ') || 'Meal'}</h3>
+                <p className="meal-kcal">{Math.round(totals.calories)} kcal</p>
+              </div>
               <ul className="meal-foods">
                 {(meal.foods || []).map((food) => (
                   <li key={food._id || food.name}>
@@ -986,10 +1065,12 @@ function CommunityView({
   );
 }
 
-function FeedComposer({ workouts, onSubmit }) {
+// Posts made here are never linked to a workout — a workout can only end up
+// on the feed by actually being performed (see ShareWorkoutPrompt), never by
+// picking one from a list after the fact.
+function FeedComposer({ onSubmit }) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [workoutId, setWorkoutId] = useState('');
   const [tags, setTags] = useState('');
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState('');
@@ -1005,8 +1086,8 @@ function FeedComposer({ workouts, onSubmit }) {
     event.preventDefault();
     setBusy(true);
     try {
-      await onSubmit({ title, body, workoutId, tags, image });
-      setTitle(''); setBody(''); setWorkoutId(''); setTags(''); setImage(null); setPreview('');
+      await onSubmit({ title, body, tags, image });
+      setTitle(''); setBody(''); setTags(''); setImage(null); setPreview('');
     } finally {
       setBusy(false);
     }
@@ -1014,8 +1095,8 @@ function FeedComposer({ workouts, onSubmit }) {
 
   return (
     <form className="glass feed-composer" onSubmit={submit}>
-      <h3>Share a workout</h3>
-      <input className="composer-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="What did you crush today?" required maxLength={160} />
+      <h3>Share an update</h3>
+      <input className="composer-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="What's on your mind?" required maxLength={160} />
       <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder="Add details — how it felt, PRs, tips..." required maxLength={5000} />
       {preview && (
         <div className="composer-preview">
@@ -1024,10 +1105,6 @@ function FeedComposer({ workouts, onSubmit }) {
         </div>
       )}
       <div className="composer-row">
-        <select value={workoutId} onChange={(event) => setWorkoutId(event.target.value)}>
-          <option value="">Attach a workout (optional)</option>
-          {workouts.map((workout) => <option key={workout._id} value={workout._id}>{workout.name}</option>)}
-        </select>
         <input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="tags: chest, pr" />
       </div>
       <div className="composer-actions">
@@ -1038,6 +1115,41 @@ function FeedComposer({ workouts, onSubmit }) {
         <button className="primary-btn" type="submit" disabled={busy}><Icon name="plus" size={18} />{busy ? 'Posting...' : 'Post'}</button>
       </div>
     </form>
+  );
+}
+
+// Shown right after a workout is actually completed (a live session finished,
+// or a workout quick-logged as already done) — never reachable from the feed
+// page itself. The workout attached is always the one just performed; there
+// is no picker.
+function ShareWorkoutPrompt({ workout, defaultBody, onSkip, onShare }) {
+  const [title, setTitle] = useState(`Just finished ${workout.name}`);
+  const [body, setBody] = useState(defaultBody);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      await onShare({ title, body });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Share workout to feed">
+      <form className="glass data-form" onSubmit={submit}>
+        <h3>Share this workout?</h3>
+        <p className="food-hint">Posting to the feed here always attaches the workout you just completed — {workout.name}.</p>
+        <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} required maxLength={160} /></label>
+        <label>Details<textarea value={body} onChange={(event) => setBody(event.target.value)} required maxLength={5000} /></label>
+        <div className="form-actions">
+          <button className="secondary-btn" type="button" onClick={onSkip}><Icon name="x" size={18} />Not now</button>
+          <button className="primary-btn" type="submit" disabled={busy}><Icon name="feed" size={18} />{busy ? 'Sharing...' : 'Share to feed'}</button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -1096,10 +1208,10 @@ function FeedPost({ post, currentUser, onLike, onComment, onDelete }) {
   );
 }
 
-function FeedView({ posts, workouts, currentUser, loading, hasMore, onCreate, onLike, onComment, onDelete, onLoadMore }) {
+function FeedView({ posts, currentUser, loading, hasMore, onCreate, onLike, onComment, onDelete, onLoadMore }) {
   return (
     <Panel title="Live Feed">
-      <FeedComposer workouts={workouts} onSubmit={onCreate} />
+      <FeedComposer onSubmit={onCreate} />
       {posts.length ? (
         <div className="feed-list">
           {posts.map((post) => (
@@ -1308,7 +1420,17 @@ function App() {
   const [notifications, setNotifications] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [reminders, setReminders] = useState([]);
-  const [status, setStatus] = useState('');
+  // { type: 'error' } is the default so every existing setStatus(message) call
+  // (there are many, scattered across catch blocks) keeps rendering as an
+  // error banner with no changes needed at those call sites — only mutate()'s
+  // success path opts into the lime "success" styling via setStatusSuccess.
+  const [status, setStatusState] = useState({ message: '', type: 'error' });
+  function setStatus(message) {
+    setStatusState({ message, type: 'error' });
+  }
+  function setStatusSuccess(message) {
+    setStatusState({ message, type: 'success' });
+  }
   const [loading, setLoading] = useState(false);
   const [formType, setFormType] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -1329,6 +1451,9 @@ function App() {
   const [goals, setGoals] = useState([]);
   const [followers, setFollowers] = useState([]);
   const [following, setFollowing] = useState([]);
+  // The just-performed workout a ShareWorkoutPrompt is offering to post —
+  // never set from anywhere except finishing/logging a workout.
+  const [shareCandidate, setShareCandidate] = useState(null);
 
   const token = auth?.token;
   const followingIds = useMemo(() => new Set(following.map((user) => user._id)), [following]);
@@ -1440,23 +1565,37 @@ function App() {
     setFormType(null);
   }
 
+  const WIZARD_VIEWS = { routine: 'routine-wizard', workout: 'workout-wizard', meal: 'meal-wizard' };
+
+  // Routine/workout/meal creation is a full-screen wizard (its own `view`),
+  // not the quick modal popup progress/reminder/goal still use.
+  function openWizard(type, item = null) {
+    setAddMenu(false);
+    setEditing(item);
+    setView(WIZARD_VIEWS[type]);
+  }
+
   async function mutate(action, successMessage = '') {
     setStatus('');
     try {
       await action();
-      if (successMessage) setStatus(successMessage);
+      if (successMessage) setStatusSuccess(successMessage);
     } catch (error) {
       setStatus(error.message);
     }
   }
 
   async function saveWorkout(payload) {
+    const isNewLog = !editing?._id;
     await mutate(async () => {
       const path = editing?._id ? `/workouts/${editing._id}` : '/workouts';
       const method = editing?._id ? 'PUT' : 'POST';
-      await request(path, { method, body: payload, token });
+      const saved = await request(path, { method, body: payload, token });
       closeForm();
+      setView('workout');
       await loadAll();
+      // Only a freshly-logged (not edited) workout counts as "performed".
+      if (isNewLog && saved.status === 'completed') setShareCandidate(saved);
     }, 'Workout saved.');
   }
 
@@ -1466,6 +1605,7 @@ function App() {
       const method = editing?._id ? 'PUT' : 'POST';
       await request(path, { method, body: payload, token });
       closeForm();
+      setView('nutrition');
       await loadAll();
     }, 'Meal saved.');
   }
@@ -1476,6 +1616,7 @@ function App() {
       const method = editing?._id ? 'PUT' : 'POST';
       await request(path, { method, body: payload, token });
       closeForm();
+      setView('routines');
       await loadAll();
     }, 'Routine saved.');
   }
@@ -1535,12 +1676,14 @@ function App() {
 
   async function finishWorkout(abandoned = false) {
     await mutate(async () => {
-      await request(`/workouts/${activeWorkout._id}/complete`, {
+      const finished = await request(`/workouts/${activeWorkout._id}/complete`, {
         method: 'POST', body: { abandoned }, token,
       });
       setActiveWorkout(null);
       setView('workout');
       await loadAll();
+      // An abandoned session was not actually performed to completion.
+      if (!abandoned) setShareCandidate(finished);
     }, abandoned ? 'Workout abandoned.' : 'Workout complete — nice work.');
   }
 
@@ -1677,17 +1820,33 @@ function App() {
     }
   }
 
-  async function createPost({ title, body, workoutId, tags, image }) {
+  // Never attaches a workout — that only happens via shareWorkoutToFeed, right
+  // after one is actually completed.
+  async function createPost({ title, body, tags, image }) {
     await mutate(async () => {
       const formData = new FormData();
       formData.append('title', title);
       formData.append('body', body);
-      if (workoutId) formData.append('workout', workoutId);
       if (tags) formData.append('tags', tags);
       if (image) formData.append('image', image);
       await request('/forum', { method: 'POST', body: formData, token });
       await loadFeed(1);
     }, 'Posted to the feed.');
+  }
+
+  // The only path that can post a workout to the feed. `shareCandidate` is set
+  // right after a workout is actually finished (a completed live session, or a
+  // workout logged as already done) — never user-selectable.
+  async function shareWorkoutToFeed({ title, body }) {
+    await mutate(async () => {
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('body', body);
+      formData.append('workout', shareCandidate._id);
+      await request('/forum', { method: 'POST', body: formData, token });
+      setShareCandidate(null);
+      await loadFeed(1);
+    }, 'Shared to the feed.');
   }
 
   async function toggleLike(post) {
@@ -1840,19 +1999,19 @@ function App() {
         <p>Keep pushing your limits. Your dashboard is synced with the backend server.</p>
       </section>
 
-      {status && <div className="status-banner">{status}</div>}
+      {status.message && <div className={`status-banner ${status.type}`}>{status.message}</div>}
       {loading && <div className="status-banner">Loading fitness data...</div>}
 
-      {view === 'dashboard' && <Dashboard stats={stats} summary={summary} workouts={workouts} nutrition={nutrition} progress={progress} reminders={reminders} goals={goals} activeWorkout={activeWorkout} openForm={openForm} setView={setView} onResume={() => setView('session')} onOpenSummary={() => setShowSummary(true)} />}
+      {view === 'dashboard' && <Dashboard stats={stats} summary={summary} workouts={workouts} nutrition={nutrition} progress={progress} reminders={reminders} goals={goals} activeWorkout={activeWorkout} openForm={openForm} openWizard={openWizard} setView={setView} onResume={() => setView('session')} onOpenSummary={() => setShowSummary(true)} />}
       {view === 'routines' && (
-        <Panel title="Routines" action="New routine" onAction={() => openForm('routine')}>
+        <Panel title="Routines" action="New routine" onAction={() => openWizard('routine')}>
           <RoutinesView
             routines={routines}
             activeWorkout={activeWorkout}
             onStart={startRoutine}
-            onEdit={(routine) => openForm('routine', routine)}
+            onEdit={(routine) => openWizard('routine', routine)}
             onDelete={(id) => removeRecord(`/routines/${id}`)}
-            onAdd={() => openForm('routine')}
+            onAdd={() => openWizard('routine')}
             onResume={() => setView('session')}
           />
         </Panel>
@@ -1871,8 +2030,11 @@ function App() {
           <EmptyState icon="play" title="Nothing in progress" text="Start a routine to track your sets as you go." />
         </Panel>
       ))}
-      {view === 'workout' && <WorkoutView workouts={filteredWorkouts} onEdit={(item) => openForm('workout', item)} onDelete={(id) => removeRecord(`/workouts/${id}`)} onAdd={() => openForm('workout')} search={workoutSearch} setSearch={setWorkoutSearch} category={workoutCategory} setCategory={setWorkoutCategory} />}
-      {view === 'nutrition' && <NutritionView nutrition={filteredNutrition} onEdit={(item) => openForm('meal', item)} onDelete={(id) => removeRecord(`/nutrition/${id}`)} onAdd={() => openForm('meal')} search={mealSearch} setSearch={setMealSearch} mealType={mealType} setMealType={setMealType} />}
+      {view === 'workout' && <WorkoutView workouts={filteredWorkouts} onEdit={(item) => openWizard('workout', item)} onDelete={(id) => removeRecord(`/workouts/${id}`)} onAdd={() => openWizard('workout')} search={workoutSearch} setSearch={setWorkoutSearch} category={workoutCategory} setCategory={setWorkoutCategory} />}
+      {view === 'nutrition' && <NutritionView nutrition={filteredNutrition} onEdit={(item) => openWizard('meal', item)} onDelete={(id) => removeRecord(`/nutrition/${id}`)} onAdd={() => openWizard('meal')} search={mealSearch} setSearch={setMealSearch} mealType={mealType} setMealType={setMealType} />}
+      {view === 'routine-wizard' && <RoutineWizard initial={editing} onCancel={() => { closeForm(); setView('routines'); }} onSubmit={saveRoutine} />}
+      {view === 'workout-wizard' && <WorkoutWizard initial={editing} onCancel={() => { closeForm(); setView('workout'); }} onSubmit={saveWorkout} />}
+      {view === 'meal-wizard' && <MealWizard initial={editing} token={token} currentUserId={profile?._id} onCancel={() => { closeForm(); setView('nutrition'); }} onSubmit={saveMeal} />}
       {view === 'progress' && <ProgressView progress={progress} onEdit={(item) => openForm('progress', item)} onDelete={(id) => removeRecord(`/progress/${id}`)} onAdd={() => openForm('progress')} />}
       {view === 'reports' && <ReportsView onExportCsv={exportCsv} onExportPdf={exportPdf} totals={totals} workouts={workouts} nutrition={nutrition} />}
       {view === 'goals' && (
@@ -1897,7 +2059,7 @@ function App() {
           onToggleFollow={toggleFollow}
         />
       )}
-      {view === 'feed' && <FeedView posts={feedPosts} workouts={workouts} currentUser={profile || auth} loading={feedLoading} hasMore={feedHasMore} onCreate={createPost} onLike={toggleLike} onComment={commentOnPost} onDelete={deletePost} onLoadMore={() => loadFeed(feedPage + 1)} />}
+      {view === 'feed' && <FeedView posts={feedPosts} currentUser={profile || auth} loading={feedLoading} hasMore={feedHasMore} onCreate={createPost} onLike={toggleLike} onComment={commentOnPost} onDelete={deletePost} onLoadMore={() => loadFeed(feedPage + 1)} />}
       {view === 'settings' && (
         <SettingsView
           profile={profile || auth}
@@ -1915,16 +2077,25 @@ function App() {
         <NutritionSummaryModal
           summary={summary}
           onClose={() => setShowSummary(false)}
-          onLogMeal={() => { setShowSummary(false); openForm('meal'); }}
+          onLogMeal={() => { setShowSummary(false); openWizard('meal'); }}
           onOpenSettings={() => { setShowSummary(false); setView('settings'); }}
+        />
+      )}
+
+      {shareCandidate && (
+        <ShareWorkoutPrompt
+          workout={shareCandidate}
+          defaultBody={(() => {
+            const counts = setCounts(shareCandidate);
+            return `${counts.completed}/${counts.planned} sets · ${Math.round(workoutVolume(shareCandidate)).toLocaleString()} kg volume`;
+          })()}
+          onSkip={() => setShareCandidate(null)}
+          onShare={shareWorkoutToFeed}
         />
       )}
 
       {formType && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
-          {formType === 'workout' && <WorkoutForm initial={editing} onCancel={closeForm} onSubmit={saveWorkout} />}
-          {formType === 'routine' && <RoutineForm initial={editing} onCancel={closeForm} onSubmit={saveRoutine} />}
-          {formType === 'meal' && <MealForm initial={editing} token={token} currentUserId={profile?._id} onCancel={closeForm} onSubmit={saveMeal} />}
           {formType === 'progress' && <ProgressForm initial={mappedProgress} onCancel={closeForm} onSubmit={saveProgress} />}
           {formType === 'reminder' && <ReminderForm initial={editing} onCancel={closeForm} onSubmit={saveReminder} />}
           {formType === 'goal' && <GoalForm initial={editing} onCancel={closeForm} onSubmit={saveGoal} />}
@@ -1935,7 +2106,7 @@ function App() {
         <div className="nav-surface" aria-hidden="true" />
         <div className="nav-items">
           <button className={`nav-item ${view === 'dashboard' ? 'active' : ''}`} onClick={() => setView('dashboard')}><Icon name="home" size={24} /><span>Home</span></button>
-          <button className={`nav-item ${view === 'routines' || view === 'session' ? 'active' : ''}`} onClick={() => setView(activeWorkout ? 'session' : 'routines')}>
+          <button className={`nav-item ${view === 'routines' || view === 'session' || view === 'routine-wizard' ? 'active' : ''}`} onClick={() => setView(activeWorkout ? 'session' : 'routines')}>
             <Icon name={activeWorkout ? 'play' : 'list'} size={23} />
             <span>{activeWorkout ? 'Live' : 'Routines'}</span>
             {activeWorkout && <i className="nav-dot" aria-hidden="true" />}
@@ -1943,7 +2114,7 @@ function App() {
           {/* Empty on purpose — reserves the grid's center column so the floating
               add button still sits in the bar's notch, dead center. */}
           <div className="nav-item nav-center" aria-hidden="true" />
-          <button className={`nav-item ${view === 'nutrition' ? 'active' : ''}`} onClick={() => setView('nutrition')}><Icon name="utensils" size={23} /><span>Food</span></button>
+          <button className={`nav-item ${view === 'nutrition' || view === 'meal-wizard' ? 'active' : ''}`} onClick={() => setView('nutrition')}><Icon name="utensils" size={23} /><span>Food</span></button>
           <button className={`nav-item ${view === 'progress' ? 'active' : ''}`} onClick={() => setView('progress')}><Icon name="progress" size={23} /><span>Progress</span></button>
         </div>
         <button className="nav-add" aria-label="Add new entry" aria-haspopup="true" aria-expanded={addMenu} onClick={() => setAddMenu((open) => !open)}><Icon name="plus" size={28} /></button>
@@ -1954,9 +2125,9 @@ function App() {
           <div className="add-menu glass" onClick={(event) => event.stopPropagation()}>
             <h3>What do you want to add?</h3>
             <div className="add-menu-grid">
-              <button className="add-menu-item" onClick={() => openForm('routine')}><span className="lime"><Icon name="list" size={26} /></span><b>Routine</b></button>
-              <button className="add-menu-item" onClick={() => openForm('workout')}><span className="lime"><Icon name="dumbbell" size={26} /></span><b>Workout</b></button>
-              <button className="add-menu-item" onClick={() => openForm('meal')}><span className="pink"><Icon name="utensils" size={26} /></span><b>Meal</b></button>
+              <button className="add-menu-item" onClick={() => openWizard('routine')}><span className="lime"><Icon name="list" size={26} /></span><b>Routine</b></button>
+              <button className="add-menu-item" onClick={() => openWizard('workout')}><span className="lime"><Icon name="dumbbell" size={26} /></span><b>Workout</b></button>
+              <button className="add-menu-item" onClick={() => openWizard('meal')}><span className="pink"><Icon name="utensils" size={26} /></span><b>Meal</b></button>
               <button className="add-menu-item" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" size={26} /></span><b>Weight</b></button>
               <button className="add-menu-item" onClick={() => openForm('reminder')}><span className="amber"><Icon name="bell" size={26} /></span><b>Reminder</b></button>
               <button className="add-menu-item" onClick={() => openForm('goal')}><span className="cyan"><Icon name="chartPie" size={26} /></span><b>Goal</b></button>

@@ -934,6 +934,13 @@ textarea:focus {
   padding: 12px 14px;
 }
 
+/* A save/update confirmation is not an error — same shape, lime instead. */
+.status-banner.success {
+  color: var(--lime);
+  background: rgba(183, 255, 0, .1);
+  border-color: rgba(183, 255, 0, .25);
+}
+
 .form-hint {
   color: var(--lime);
   background: rgba(183, 255, 0, .1);
@@ -2526,7 +2533,30 @@ textarea:focus {
   gap: 6px;
 }
 
+/* Meal and routine cards read horizontally, full-width — inside the standard
+   half-width grid column their meta rows and action buttons had no room and
+   stacked one per line instead of sitting side by side. Specificity (two
+   classes) beats the plain `.record-grid` rule and its two-column
+   media-query overrides. */
+.record-grid.meal-grid,
+.record-grid.routine-grid {
+  grid-template-columns: 1fr;
+}
+
+.meal-card-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap-sm);
+}
+
+.meal-card-title-row h3 {
+  min-width: 0;
+}
+
 .meal-kcal {
+  flex: 0 0 auto;
+  white-space: nowrap;
   font-size: 1.15rem;
   font-weight: 700;
   color: var(--lime);
@@ -2704,6 +2734,180 @@ textarea:focus {
 .exercise-row-tools {
   display: flex;
   gap: 4px;
+}
+
+/* --- Step wizards: routine / workout / meal creation ----------------------
+   Full-screen (like the live session view), one focused step at a time,
+   instead of one long scrollable form. --------------------------------- */
+
+.wizard-header {
+  margin-bottom: clamp(16px, 4vw, 24px);
+}
+
+.wizard-header-row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  margin-bottom: 10px;
+}
+
+.wizard-back {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, .04);
+  color: inherit;
+  cursor: pointer;
+}
+
+.wizard-heading {
+  min-width: 0;
+}
+
+.wizard-heading h2 {
+  margin: 0;
+  font-size: clamp(18px, 4.6vw, 24px);
+  line-height: 1.2;
+}
+
+.wizard-heading p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: .84rem;
+}
+
+.wizard-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+
+.wizard-progress .meter {
+  flex: 1;
+}
+
+.wizard-progress small {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: .76rem;
+  white-space: nowrap;
+}
+
+.wizard-body {
+  display: grid;
+  gap: clamp(12px, 3vw, 16px);
+}
+
+.wizard-name-label input {
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 14px 16px;
+}
+
+.wizard-footer {
+  margin: var(--gap) 0 calc(var(--gap) * 4);
+}
+
+.wizard-next {
+  width: 100%;
+  justify-content: center;
+}
+
+.wizard-review {
+  padding: var(--pad-card);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 10px;
+}
+
+.wizard-review h3 {
+  margin: 0;
+}
+
+/* Meal-type picker — step 1 of the meal wizard. Tapping a tile both selects
+   it and advances to the next step. */
+.meal-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+.meal-type-card {
+  min-width: 0;
+  height: clamp(96px, 24vw, 140px);
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, .10);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  background: linear-gradient(135deg, rgba(31, 34, 39, .86), rgba(17, 19, 22, .78));
+}
+
+.meal-type-card b {
+  font-size: clamp(14px, 3.6vw, 18px);
+}
+
+.meal-type-card.selected {
+  border-color: rgba(183, 255, 0, .5);
+  box-shadow: 0 0 0 2px rgba(183, 255, 0, .18) inset;
+}
+
+/* Shared "add one exercise" mini-form — routine + workout wizards. */
+.exercise-quick-add {
+  padding: var(--gap-sm);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  display: grid;
+  gap: var(--gap-sm);
+}
+
+.exercise-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .04);
+  color: var(--muted);
+  padding: 6px 12px;
+  font-size: .78rem;
+  cursor: pointer;
+}
+
+.chip.selected {
+  border-color: rgba(183, 255, 0, .5);
+  background: rgba(183, 255, 0, .13);
+  color: var(--lime);
+}
+
+.exercise-quick-add-name {
+  width: 100%;
+}
+
+.add-exercise-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.exercise-row-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.exercise-row-meta {
+  margin: 0;
+  font-size: .82rem;
+  color: var(--muted);
 }
 
 /* --- Active session ------------------------------------------------------ */

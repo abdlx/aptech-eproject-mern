@@ -54,6 +54,9 @@ export default function Icon({ name, size = 26 }) {
     timer: <><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2M9 2h6" /></>,
     target: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" /></>,
     copy: <><rect x="9" y="9" width="12" height="12" rx="2.5" /><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" /></>,
+    // Added for the step-wizard headers (routine/workout/meal creation).
+    back: <path d="m15 6-6 6 6 6" />,
+    forward: <path d="m9 6 6 6-6 6" />,
   };
 
   const isFilled = name === 'home' || name === 'flame' || name === 'heart' || name === 'play' || name === 'stop';

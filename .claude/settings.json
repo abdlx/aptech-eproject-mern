@@ -72,7 +72,15 @@
       "Bash(node \"C:\\\\Users\\\\Abdullah\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--code-aptech-assignment-Epro-MERN\\\\73c16607-773d-4ebc-961e-fbf7f5eb7e2a\\\\scratchpad\\\\cleanup-wiring-test.mjs\")",
       "Bash(node _cleanup_wiring_test.mjs)",
       "Bash(git -C /d/code/aptech-assignment/Epro_MERN status --short)",
-      "Bash(git -C /d/code/aptech-assignment/Epro_MERN diff --stat .claude/settings.json)"
+      "Bash(git -C /d/code/aptech-assignment/Epro_MERN diff --stat .claude/settings.json)",
+      "Bash(grep -n \"nav-item \\\\${view ===\" /d/code/aptech-assignment/Epro_MERN/frontend/src/main.jsx)",
+      "Bash(curl -s -o /dev/null -w \"backend\\(5000\\): %{http_code}\\\\n\" http://localhost:5000/api/health)",
+      "Bash(curl -s -o /dev/null -w \"frontend\\(5173\\): %{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(grep -n \"setStatus\\(\\\\|const \\\\[status, setStatus\\\\]\\\\|status && \\\\|{status}\" /d/code/aptech-assignment/Epro_MERN/frontend/src/main.jsx)",
+      "Bash(grep -n \"\\\\.form-error,\\\\|\\\\.status-banner {\" /d/code/aptech-assignment/Epro_MERN/frontend/src/styles.css)",
+      "Bash(git -C /d/code/aptech-assignment/Epro_MERN diff --stat HEAD -- AUTHORS.md server/tests/full-coverage.test.js)",
+      "Bash(git -C /d/code/aptech-assignment/Epro_MERN log --oneline -15)",
+      "Bash(git -C /d/code/aptech-assignment/Epro_MERN diff --stat)"
     ],
     "additionalDirectories": [
       "\\tmp"

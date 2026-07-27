@@ -6,24 +6,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { num, exerciseVolume, setCounts, formatDuration } from '../lib/calc.js';
+import { WizardHeader, ExerciseQuickAdd } from './Wizard.jsx';
 
 // The routine/session half of the fix: before this there was no way to save a
 // reusable workout, start it, or tick off exercises as you did them — a
 // "workout" could only be logged after the fact, one exercise at a time.
 
-const emptyExercise = () => ({
-  key: Math.random().toString(36).slice(2),
-  name: '',
-  targetSets: 3,
-  targetReps: 10,
-  targetWeight: 0,
-  restSeconds: 90,
-  notes: '',
-});
+const ROUTINE_EXERCISE_FIELDS = [
+  { key: 'targetSets', label: 'Sets', default: 3, min: 1, max: 50 },
+  { key: 'targetReps', label: 'Reps', default: 10, min: 0 },
+  { key: 'targetWeight', label: 'Weight kg', default: 0, min: 0, step: 'any' },
+  { key: 'restSeconds', label: 'Rest s', default: 90, min: 0, max: 3600 },
+];
 
-// --- Routine builder -------------------------------------------------------
+// --- Routine builder ---------------------------------------------------------
+// A 3-screen wizard instead of one long form: name & details, then add
+// exercises one at a time (each appears in the list immediately), then
+// review before saving. Editing an existing routine goes through the same
+// flow, pre-filled.
 
-export function RoutineForm({ initial, onCancel, onSubmit }) {
+export function RoutineWizard({ initial, onCancel, onSubmit }) {
+  const [step, setStep] = useState(0);
   const [name, setName] = useState(initial?.name || '');
   const [description, setDescription] = useState(initial?.description || '');
   const [category, setCategory] = useState(initial?.category || 'strength');
@@ -31,16 +34,12 @@ export function RoutineForm({ initial, onCancel, onSubmit }) {
   const [exercises, setExercises] = useState(() => (
     initial?.exercises?.length
       ? initial.exercises.map((exercise) => ({ ...exercise, key: exercise._id || Math.random().toString(36).slice(2) }))
-      : [emptyExercise()]
+      : []
   ));
 
   const plannedVolume = useMemo(() => exercises.reduce((sum, exercise) => (
     sum + num(exercise.targetSets) * num(exercise.targetReps) * num(exercise.targetWeight)
   ), 0), [exercises]);
-
-  function update(key, patch) {
-    setExercises((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)));
-  }
 
   function move(index, delta) {
     setExercises((current) => {
@@ -52,21 +51,28 @@ export function RoutineForm({ initial, onCancel, onSubmit }) {
     });
   }
 
-  function submit(event) {
-    event.preventDefault();
-    const cleaned = exercises
-      .filter((exercise) => exercise.name.trim())
-      .map((exercise, index) => ({
-        name: exercise.name.trim(),
-        targetSets: num(exercise.targetSets),
-        targetReps: num(exercise.targetReps),
-        targetWeight: num(exercise.targetWeight),
-        restSeconds: num(exercise.restSeconds),
-        notes: exercise.notes,
-        order: index,
-      }));
-    if (!cleaned.length) return;
+  function addExercise(entry) {
+    setExercises((current) => [...current, { key: Math.random().toString(36).slice(2), ...entry }]);
+  }
 
+  function removeExercise(key) {
+    setExercises((current) => current.filter((item) => item.key !== key));
+  }
+
+  function back() {
+    if (step === 0) onCancel();
+    else setStep((current) => current - 1);
+  }
+
+  function submit() {
+    const cleaned = exercises.map((exercise, index) => ({
+      name: exercise.name,
+      targetSets: num(exercise.targetSets),
+      targetReps: num(exercise.targetReps),
+      targetWeight: num(exercise.targetWeight),
+      restSeconds: num(exercise.restSeconds),
+      order: index,
+    }));
     onSubmit({
       name,
       description,
@@ -76,71 +82,109 @@ export function RoutineForm({ initial, onCancel, onSubmit }) {
     });
   }
 
-  return (
-    <form className="glass data-form routine-form" onSubmit={submit}>
-      <h3>{initial?._id ? 'Edit routine' : 'New routine'}</h3>
-      <label>Routine name<input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Push Day A" /></label>
-      <div className="form-row">
-        <label>Category
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="strength">Strength</option>
-            <option value="cardio">Cardio</option>
-            <option value="flexibility">Flexibility</option>
-            <option value="other">Other</option>
-          </select>
-        </label>
-        <label>Tags<input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="push, chest" /></label>
-      </div>
-      <label>Description<textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} /></label>
+  const subtitles = ['Name it and set the basics', "Add each exercise you'll do", 'Review before saving'];
 
-      <div className="subheading"><h3>Exercises</h3><small>{exercises.length}</small></div>
-      <div className="exercise-rows">
-        {exercises.map((exercise, index) => (
-          <div className="exercise-row" key={exercise.key}>
-            <div className="exercise-row-head">
-              <span className="exercise-index">{index + 1}</span>
-              <input
-                value={exercise.name}
-                onChange={(e) => update(exercise.key, { name: e.target.value })}
-                placeholder="Exercise name"
-                required
-              />
-              <div className="exercise-row-tools">
-                <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up">↑</button>
-                <button type="button" onClick={() => move(index, 1)} disabled={index === exercises.length - 1} aria-label="Move down">↓</button>
-                <button
-                  type="button"
-                  onClick={() => setExercises((current) => (
-                    current.length > 1 ? current.filter((item) => item.key !== exercise.key) : current
-                  ))}
-                  aria-label="Remove exercise"
-                ><Icon name="x" size={15} /></button>
+  return (
+    <section className="panel-view wizard">
+      <WizardHeader
+        title={initial?._id ? 'Edit routine' : 'New routine'}
+        subtitle={subtitles[step]}
+        step={step}
+        totalSteps={3}
+        onBack={back}
+      />
+
+      {step === 0 && (
+        <div className="wizard-body">
+          <label className="wizard-name-label">
+            Routine name
+            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} required placeholder="Push Day A" />
+          </label>
+          <div className="form-row">
+            <label>Category
+              <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option value="strength">Strength</option>
+                <option value="cardio">Cardio</option>
+                <option value="flexibility">Flexibility</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label>Tags<input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="push, chest" /></label>
+          </div>
+          <label>Description<textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></label>
+
+          <div className="wizard-footer">
+            <button className="primary-btn wizard-next" type="button" disabled={!name.trim()} onClick={() => setStep(1)}>
+              Next<Icon name="forward" size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 1 && (
+        <div className="wizard-body">
+          <div className="exercise-rows">
+            {exercises.map((exercise, index) => (
+              <div className="exercise-row" key={exercise.key}>
+                <div className="exercise-row-head">
+                  <span className="exercise-index">{index + 1}</span>
+                  <span className="exercise-row-name">{exercise.name}</span>
+                  <div className="exercise-row-tools">
+                    <button type="button" onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up">↑</button>
+                    <button type="button" onClick={() => move(index, 1)} disabled={index === exercises.length - 1} aria-label="Move down">↓</button>
+                    <button type="button" onClick={() => removeExercise(exercise.key)} aria-label="Remove exercise"><Icon name="x" size={15} /></button>
+                  </div>
+                </div>
+                <p className="exercise-row-meta">
+                  {exercise.targetSets} × {exercise.targetReps}
+                  {num(exercise.targetWeight) ? ` @ ${exercise.targetWeight}kg` : ''} · {exercise.restSeconds}s rest
+                </p>
               </div>
+            ))}
+            {!exercises.length && <p className="food-hint">No exercises added yet — add your first one below.</p>}
+          </div>
+
+          <ExerciseQuickAdd fields={ROUTINE_EXERCISE_FIELDS} onAdd={addExercise} />
+
+          <div className="wizard-footer">
+            <button className="primary-btn wizard-next" type="button" disabled={!exercises.length} onClick={() => setStep(2)}>
+              Next<Icon name="forward" size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="wizard-body">
+          <div className="wizard-review glass">
+            <h3>{name}</h3>
+            <div className="record-heading">
+              <span className="pill">{category}</span>
+              {!!tags.trim() && <span className="pill cyan-fill">{tags}</span>}
             </div>
-            <div className="form-row">
-              <label>Sets<input type="number" min="1" max="50" value={exercise.targetSets} onChange={(e) => update(exercise.key, { targetSets: e.target.value })} /></label>
-              <label>Reps<input type="number" min="0" value={exercise.targetReps} onChange={(e) => update(exercise.key, { targetReps: e.target.value })} /></label>
-              <label>Weight kg<input type="number" min="0" step="any" value={exercise.targetWeight} onChange={(e) => update(exercise.key, { targetWeight: e.target.value })} /></label>
-              <label>Rest s<input type="number" min="0" max="3600" value={exercise.restSeconds} onChange={(e) => update(exercise.key, { restSeconds: e.target.value })} /></label>
+            {description && <p>{description}</p>}
+            <ul className="routine-exercises">
+              {exercises.map((exercise) => (
+                <li key={exercise.key}>
+                  <span>{exercise.name}</span>
+                  <small>{exercise.targetSets} × {exercise.targetReps}{num(exercise.targetWeight) ? ` @ ${exercise.targetWeight}kg` : ''}</small>
+                </li>
+              ))}
+            </ul>
+            <div className="meal-totals">
+              <strong>{Math.round(plannedVolume).toLocaleString()} kg</strong>
+              <span>planned volume</span>
             </div>
           </div>
-        ))}
-      </div>
 
-      <button type="button" className="link-btn compact add-row" onClick={() => setExercises((c) => [...c, emptyExercise()])}>
-        <Icon name="plus" size={16} /> Add exercise
-      </button>
-
-      <div className="meal-totals">
-        <strong>{Math.round(plannedVolume).toLocaleString()} kg</strong>
-        <span>planned volume</span>
-      </div>
-
-      <div className="form-actions">
-        <button className="secondary-btn" type="button" onClick={onCancel}><Icon name="x" size={18} />Cancel</button>
-        <button className="primary-btn" type="submit"><Icon name="save" size={18} />Save routine</button>
-      </div>
-    </form>
+          <div className="wizard-footer">
+            <button className="primary-btn wizard-next" type="button" onClick={submit}>
+              <Icon name="save" size={18} />Save routine
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -160,7 +204,7 @@ export function RoutinesView({ routines, activeWorkout, onStart, onEdit, onDelet
         </section>
       )}
 
-      <div className="record-grid">
+      <div className="record-grid routine-grid">
         {routines.length ? routines.map((routine) => {
           const volume = routine.exercises.reduce((sum, ex) => (
             sum + num(ex.targetSets) * num(ex.targetReps) * num(ex.targetWeight)
