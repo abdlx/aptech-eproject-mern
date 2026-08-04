@@ -260,11 +260,13 @@ function StatCard({ stat, onClick }) {
       className={`glass stat-card${onClick ? ' stat-card-action' : ''}`}
       {...(onClick ? { type: 'button', onClick, 'aria-label': `${stat.label} — open today's nutrition breakdown` } : {})}
     >
-      <div className={`icon-bubble ${stat.color}`}><Icon name={stat.icon} /></div>
-      <div>
-        <p>{stat.label}</p>
-        <strong>{stat.value}</strong>
-        <span>{stat.target}</span>
+      <div className="stat-card-top">
+        <div className={`icon-bubble ${stat.color}`}><Icon name={stat.icon} /></div>
+        <div className="stat-card-text">
+          <p>{stat.label}</p>
+          <strong>{stat.value}</strong>
+          <span>{stat.target}</span>
+        </div>
       </div>
       <div className="meter"><i className={stat.color} style={{ width: `${Math.min(100, stat.progress)}%` }} /></div>
     </Tag>
@@ -732,7 +734,7 @@ function FormActions({ onCancel }) {
   );
 }
 
-function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, goals, activeWorkout, openForm, openWizard, setView, onResume, onOpenSummary }) {
+function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, goals, activeWorkout, openForm, openWizard, setView, onResume, onOpenSummary, greeting, name }) {
   const recent = [
     ...workouts.slice(0, 2).map((item) => ({
       id: `w-${item._id}`,
@@ -763,85 +765,109 @@ function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, g
   const nextWorkout = workouts[0];
   const nextMeal = nutrition[0];
 
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
   return (
-    <>
-      {activeWorkout && (
-        <section className="glass active-banner">
-          <div>
-            <small>Workout in progress</small>
-            <h3>{activeWorkout.name}</h3>
-            <p>{activeWorkout.summary?.completedSets || 0}/{activeWorkout.summary?.plannedSets || 0} sets done</p>
-          </div>
-          <button className="primary-btn" onClick={onResume}><Icon name="play" size={18} />Resume</button>
+    <div className="dashboard-grid">
+      <div className="dashboard-main-col">
+        <section className="hero">
+          <h1>{greeting},<br />{name}</h1>
+          <p>Stay consistent, stay strong. You're closer than you think.</p>
+          <div className="hero-date"><Icon name="clock" size={14} />{today}</div>
         </section>
-      )}
-      <div className="stats">
-        {stats.map((stat) => (
-          <StatCard
-            key={stat.label}
-            stat={stat}
-            // Only the nutrition figures open the breakdown; Volume and Weight
-            // have nothing extra to show here.
-            onClick={summary && stat.opensSummary ? onOpenSummary : undefined}
-          />
-        ))}
+
+        {activeWorkout && (
+          <section className="glass active-banner">
+            <div>
+              <small>Workout in progress</small>
+              <h3>{activeWorkout.name}</h3>
+              <p>{activeWorkout.summary?.completedSets || 0}/{activeWorkout.summary?.plannedSets || 0} sets done</p>
+            </div>
+            <button className="primary-btn" onClick={onResume}><Icon name="play" size={18} />Resume</button>
+          </section>
+        )}
+
+        <div className="stats">
+          {stats.map((stat) => (
+            <StatCard
+              key={stat.label}
+              stat={stat}
+              onClick={summary && stat.opensSummary ? onOpenSummary : undefined}
+            />
+          ))}
+        </div>
+
+        <div className="dashboard-row-2">
+          <div className="dashboard-col">
+            <SectionTitle title="Today's Overview" action="View All" onAction={() => setView('workout')} />
+            <section className="glass overview">
+              <div className="overview-block workout-bg">
+                <img src="/images/next-workout.png" alt="" />
+                <small>Last Workout</small><h3>{nextWorkout?.name || 'Add a workout'}</h3><p><Icon name="clock" size={21} /> {nextWorkout ? formatDate(nextWorkout.date) : 'No schedule yet'}</p>
+              </div>
+              <div className="overview-block meal-bg">
+                <img src="/images/next-meal.png" alt="" />
+                <small>Last Meal</small><h3>{nextMeal?.mealType || 'Log a meal'}</h3><p><Icon name="clock" size={21} /> {nextMeal ? formatDate(nextMeal.date) : 'No meal yet'}</p>
+              </div>
+            </section>
+          </div>
+          <div className="dashboard-col">
+            <SectionTitle title="Weekly Progress" action="This Week" />
+            <ProgressChart entries={progress} />
+          </div>
+        </div>
+
+        <div className="dashboard-row-2 align-top">
+          <div className="dashboard-col">
+            <SectionTitle title="Quick Actions" />
+            <section className="actions">
+              <button className="glass action" onClick={() => openWizard('workout')}><span className="lime"><Icon name="dumbbell" /></span><b>Start</b><b>Workout</b></button>
+              <button className="glass action" onClick={() => openWizard('meal')}><span className="pink"><Icon name="utensils" /></span><b>Log</b><b>Meal</b></button>
+              <button className="glass action" onClick={() => openWizard('meal')}><span className="cyan"><Icon name="scale" /></span><b>Log</b><b>Water</b></button>
+              <button className="glass action" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" /></span><b>Track</b><b>Weight</b></button>
+              <button className="glass action" onClick={() => setView('progress')}><span className="amber"><Icon name="progress" /></span><b>View</b><b>Progress</b></button>
+            </section>
+            {!!goals.length && (
+              <>
+                <SectionTitle title="" />
+                <section className="actions" style={{gridTemplateColumns:'repeat(3,1fr)'}}>
+                  <button className="glass action" onClick={() => openForm('goal')}><span className="lime"><Icon name="chartPie" /></span><b>Add</b><b>Goal</b></button>
+                </section>
+              </>
+            )}
+          </div>
+          <div className="dashboard-col">
+            <SectionTitle title="Recent Activity" action="View All" onAction={() => setView('workout')} />
+            <section className="glass activity-list">
+              {recent.slice(0, 4).map((item) => (
+                <article className="activity" key={`mid-${item.id}`}>
+                  <div className={`mini-icon ${item.color}`}><Icon name={item.icon} size={24} /></div>
+                  <div><h3>{item.title}</h3><p>{item.detail}</p></div>
+                  <time>{item.time}</time>
+                  <Icon name="check" size={25} />
+                </article>
+              ))}
+              {!recent.length && <EmptyState icon="plus" title="No activity yet" text="Use quick actions to add your first workout, meal, or progress update." />}
+            </section>
+          </div>
+        </div>
       </div>
 
-      <SectionTitle title="Today's Overview" action="View All" onAction={() => setView('workout')} />
-      <section className="glass overview">
-        <div className="overview-block workout-bg">
-          <img src="/images/next-workout.png" alt="" />
-          <small>Last Workout</small><h3>{nextWorkout?.name || 'Add a workout'}</h3><p><Icon name="clock" size={21} /> {nextWorkout ? formatDate(nextWorkout.date) : 'No schedule yet'}</p>
+      <div className="dashboard-side-col">
+        <SectionTitle title="Recent Activity" action="View All" onAction={() => setView('workout')} />
+        <div className="desktop-full-height">
+          {recent.map((item) => (
+            <article className="activity" key={`side-${item.id}`}>
+              <div className={`mini-icon ${item.color}`}><Icon name={item.icon} size={24} /></div>
+              <div><h3>{item.title}</h3><p>{item.detail}</p></div>
+              <time>{item.time}</time>
+              <Icon name="check" size={25} />
+            </article>
+          ))}
+          {!recent.length && <EmptyState icon="plus" title="No activity yet" text="Use quick actions to add your first workout, meal, or progress update." />}
         </div>
-        <div className="overview-block meal-bg">
-          <img src="/images/next-meal.png" alt="" />
-          <small>Last Meal</small><h3>{nextMeal?.mealType || 'Log a meal'}</h3><p><Icon name="clock" size={21} /> {nextMeal ? formatDate(nextMeal.date) : 'No meal yet'}</p>
-        </div>
-      </section>
-      <SectionTitle title="Weekly Progress" action="This Week" />
-      <ProgressChart entries={progress} />
-      <SectionTitle title="Quick Actions" />
-      <section className="actions">
-        <button className="glass action" onClick={() => setView('routines')}><span className="lime featured-action"><Icon name="play" /></span><b>Start</b><b>Routine</b></button>
-        <button className="glass action" onClick={() => openWizard('workout')}><span className="lime"><Icon name="dumbbell" /></span><b>Log</b><b>Workout</b></button>
-        <button className="glass action" onClick={() => openWizard('meal')}><span className="pink"><Icon name="utensils" /></span><b>Log</b><b>Meal</b></button>
-        <button className="glass action" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" /></span><b>Update</b><b>Weight</b></button>
-        <button className="glass action" onClick={() => setView('goals')}><span className="cyan"><Icon name="chartPie" /></span><b>Set</b><b>Goal</b></button>
-        <button className="glass action" onClick={() => setView('feed')}><span className="amber"><Icon name="feed" /></span><b>View</b><b>Feed</b></button>
-      </section>
-      <SectionTitle title="Recent Activity" action="View All" onAction={() => setView('workout')} />
-      <section className="glass activity-list">
-        {recent.length ? recent.map((item) => (
-          <article className="activity" key={item.id}>
-            <div className={`mini-icon ${item.color}`}><Icon name={item.icon} size={24} /></div>
-            <div><h3>{item.title}</h3><p>{item.detail}</p></div>
-            <time>{item.time}</time>
-            <Icon name="check" size={25} />
-          </article>
-        )) : <EmptyState icon="plus" title="No activity yet" text="Use quick actions to add your first workout, meal, or progress update." />}
-      </section>
-      {!!goals.length && (
-        <>
-          <SectionTitle title="Goals" action="View All" onAction={() => setView('goals')} />
-          <section className="glass compact-list goals-widget">
-            {goals.slice(0, 3).map((goal) => (
-              <div className="goal-widget-row" key={goal._id}>
-                <p><Icon name="chartPie" size={18} /><span>{goal.title}</span>{goal.achieved && <i className="nav-dot" aria-hidden="true" />}</p>
-                <div className="meter"><i className={goal.achieved ? 'lime' : 'cyan'} style={{ width: `${goal.progressPercent ?? 0}%` }} /></div>
-              </div>
-            ))}
-          </section>
-        </>
-      )}
-      {!!reminders.length && (
-        <>
-          <SectionTitle title="Upcoming Reminders" />
-          <section className="glass compact-list">
-            {reminders.slice(0, 3).map((item) => <p key={item._id}><Icon name="bell" size={18} /><span>{item.title}</span><time>{formatDate(item.time)}</time></p>)}
-          </section>
-        </>
-      )}
-    </>
+      </div>
+    </div>
   );
 }
 
@@ -1547,7 +1573,7 @@ function App() {
     if (refreshToken) {
       // Best-effort: revoke this session's refresh token server-side so it
       // can't be replayed. Local logout proceeds either way.
-      await request('/auth/logout', { method: 'POST', body: { refreshToken } }).catch(() => {});
+      await request('/auth/logout', { method: 'POST', body: { refreshToken } }).catch(() => { });
     }
     localStorage.removeItem(AUTH_KEY);
     setAuth(null);
@@ -1981,28 +2007,49 @@ function App() {
   const greeting = greetingHour < 12 ? 'Good Morning' : greetingHour < 18 ? 'Good Afternoon' : 'Good Evening';
 
   return (
-    <main className={`phone theme-${profile?.preferences?.theme || 'dark'}`}>
-      <header className="topbar">
+    <div className={`app-layout theme-${profile?.preferences?.theme || 'dark'}`}>
+      <aside className="desktop-sidebar">
         <button className="logo logo-button" onClick={() => setView('dashboard')}>Fit<span>Track</span></button>
-        <nav className="top-icons" aria-label="Header actions">
-          <button aria-label="Nutrition" onClick={() => setView('nutrition')}><Icon name="utensils" size={24} /></button>
-          <button className="notif" aria-label="Notifications" onClick={() => setView('community')}><Icon name="bell" size={24} /></button>
-          <button className="avatar" aria-label="Profile" onClick={() => setView('settings')}>
-            {profile?.profilePicture ? <img src={assetUrl(profile.profilePicture)} alt="" /> : <Icon name="user" size={22} />}
-          </button>
-          <button aria-label="Log out" onClick={logout}><Icon name="logout" size={24} /></button>
+        <nav className="desktop-nav">
+          <button className={`nav-item ${view === 'dashboard' ? 'active' : ''}`} onClick={() => setView('dashboard')}><Icon name="home" size={24} /><span>Dashboard</span></button>
+          <button className={`nav-item ${view === 'community' ? 'active' : ''}`} onClick={() => setView('community')}><Icon name="feed" size={24} /><span>Activity</span></button>
+          <button className={`nav-item ${view === 'workout' || view === 'session' ? 'active' : ''}`} onClick={() => setView('workout')}><Icon name="dumbbell" size={24} /><span>Workouts</span></button>
+          <button className={`nav-item ${view === 'nutrition' ? 'active' : ''}`} onClick={() => setView('nutrition')}><Icon name="utensils" size={24} /><span>Nutrition</span></button>
+          <button className={`nav-item ${view === 'progress' ? 'active' : ''}`} onClick={() => setView('progress')}><Icon name="progress" size={24} /><span>Progress</span></button>
+          <button className={`nav-item ${view === 'goals' ? 'active' : ''}`} onClick={() => setView('goals')}><Icon name="target" size={24} /><span>Goals</span></button>
+          <button className={`nav-item ${view === 'reports' ? 'active' : ''}`} onClick={() => setView('reports')}><Icon name="chartPie" size={24} /><span>Analytics</span></button>
+          <button className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => setView('settings')}><Icon name="settings" size={24} /><span>Settings</span></button>
         </nav>
-      </header>
-
-      <section className="hero">
-        <h1>{greeting}, {profile?.name || auth.name || 'Athlete'}</h1>
-        <p>Keep pushing your limits. Your dashboard is synced with the backend server.</p>
-      </section>
+        <div className="desktop-sidebar-footer">
+          <button className="user-profile-btn" onClick={() => setView('settings')}>
+            <div className="avatar">
+              {profile?.profilePicture ? <img src={assetUrl(profile.profilePicture)} alt="" /> : <Icon name="user" size={22} />}
+            </div>
+            <div className="user-info">
+              <strong>{profile?.name || auth.name || 'Athlete'}</strong>
+              <small>Premium Member</small>
+            </div>
+            <Icon name="chevronDown" size={16} />
+          </button>
+        </div>
+      </aside>
+      <main className="phone app-content">
+        <header className="topbar">
+          <button className="logo logo-button" onClick={() => setView('dashboard')}>Fit<span>Track</span></button>
+          <nav className="top-icons" aria-label="Header actions">
+            <button aria-label="Nutrition" onClick={() => setView('nutrition')}><Icon name="utensils" size={24} /></button>
+            <button className="notif" aria-label="Notifications" onClick={() => setView('community')}><Icon name="bell" size={24} /></button>
+            <button className="avatar" aria-label="Profile" onClick={() => setView('settings')}>
+              {profile?.profilePicture ? <img src={assetUrl(profile.profilePicture)} alt="" /> : <Icon name="user" size={22} />}
+            </button>
+            <button aria-label="Log out" onClick={logout}><Icon name="logout" size={24} /></button>
+          </nav>
+        </header>
 
       {status.message && <div className={`status-banner ${status.type}`}>{status.message}</div>}
       {loading && <div className="status-banner">Loading fitness data...</div>}
 
-      {view === 'dashboard' && <Dashboard stats={stats} summary={summary} workouts={workouts} nutrition={nutrition} progress={progress} reminders={reminders} goals={goals} activeWorkout={activeWorkout} openForm={openForm} openWizard={openWizard} setView={setView} onResume={() => setView('session')} onOpenSummary={() => setShowSummary(true)} />}
+      {view === 'dashboard' && <Dashboard stats={stats} summary={summary} workouts={workouts} nutrition={nutrition} progress={progress} reminders={reminders} goals={goals} activeWorkout={activeWorkout} openForm={openForm} openWizard={openWizard} setView={setView} onResume={() => setView('session')} onOpenSummary={() => setShowSummary(true)} greeting={greeting} name={profile?.name || auth.name || 'Athlete'} />}
       {view === 'routines' && (
         <Panel title="Routines" action="New routine" onAction={() => openWizard('routine')}>
           <RoutinesView
@@ -2137,6 +2184,7 @@ function App() {
         </div>
       )}
     </main>
+    </div>
   );
 }
 

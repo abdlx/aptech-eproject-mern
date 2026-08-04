@@ -57,6 +57,8 @@ export default function Icon({ name, size = 26 }) {
     // Added for the step-wizard headers (routine/workout/meal creation).
     back: <path d="m15 6-6 6 6 6" />,
     forward: <path d="m9 6 6 6-6 6" />,
+    chartLine: <><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></>,
+    chevronDown: <path d="m6 9 6 6 6-6" />,
   };
 
   const isFilled = name === 'home' || name === 'flame' || name === 'heart' || name === 'play' || name === 'stop';
