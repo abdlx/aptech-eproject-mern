@@ -258,7 +258,7 @@ function StatCard({ stat, onClick }) {
   return (
     <Tag
       className={`glass stat-card${onClick ? ' stat-card-action' : ''}`}
-      {...(onClick ? { type: 'button', onClick, 'aria-label': `${stat.label} — open today's nutrition breakdown` } : {})}
+      {...(onClick ? { type: 'button', onClick, 'aria-label': `${stat.label} — ${stat.opensForm ? 'track weight' : "open today's nutrition breakdown"}` } : {})}
     >
       <div className="stat-card-top">
         <div className={`icon-bubble ${stat.color}`}><Icon name={stat.icon} /></div>
@@ -268,6 +268,12 @@ function StatCard({ stat, onClick }) {
           <span>{stat.target}</span>
         </div>
       </div>
+      {stat.opensForm && (
+        <div className="stat-card-badge">
+          <Icon name="plus" size={13} />
+          <span>Track</span>
+        </div>
+      )}
       <div className="meter"><i className={stat.color} style={{ width: `${Math.min(100, stat.progress)}%` }} /></div>
     </Tag>
   );
@@ -343,7 +349,7 @@ function NutritionSummaryModal({ summary, onClose, onLogMeal, onOpenSettings }) 
   );
 }
 
-function ProgressChart({ entries }) {
+function ProgressChart({ entries, onTrackWeight }) {
   const newestFirst = entries.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
   const week = newestFirst.slice(0, 7).reverse();
   const values = week.map((entry) => num(entry.weight)).filter(Boolean);
@@ -362,6 +368,12 @@ function ProgressChart({ entries }) {
 
   return (
     <section className="glass progress-card">
+      {onTrackWeight && (
+        <button type="button" className="progress-card-track-btn" onClick={onTrackWeight}>
+          <Icon name="plus" size={14} />
+          <span>Track Weight</span>
+        </button>
+      )}
       <div className="chart-grid">
         <span>{Math.round(max)} kg</span><span>{Math.round((max + min) / 2)} kg</span><span>{Math.round(min)} kg</span>
       </div>
@@ -792,7 +804,13 @@ function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, g
             <StatCard
               key={stat.label}
               stat={stat}
-              onClick={summary && stat.opensSummary ? onOpenSummary : undefined}
+              onClick={
+                summary && stat.opensSummary
+                  ? onOpenSummary
+                  : stat.opensForm
+                  ? () => openForm(stat.opensForm)
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -813,7 +831,7 @@ function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, g
           </div>
           <div className="dashboard-col">
             <SectionTitle title="Weekly Progress" action="This Week" />
-            <ProgressChart entries={progress} />
+            <ProgressChart entries={progress} onTrackWeight={() => openForm('progress')} />
           </div>
         </div>
 
@@ -824,7 +842,7 @@ function Dashboard({ stats, summary, workouts, nutrition, progress, reminders, g
               <button className="glass action" onClick={() => openWizard('workout')}><span className="lime"><Icon name="dumbbell" /></span><b>Start</b><b>Workout</b></button>
               <button className="glass action" onClick={() => openWizard('meal')}><span className="pink"><Icon name="utensils" /></span><b>Log</b><b>Meal</b></button>
               <button className="glass action" onClick={() => openWizard('meal')}><span className="cyan"><Icon name="scale" /></span><b>Log</b><b>Water</b></button>
-              <button className="glass action" onClick={() => openForm('progress')}><span className="cyan"><Icon name="scale" /></span><b>Track</b><b>Weight</b></button>
+              <button className="glass action" onClick={() => setView('feed')}><span className="cyan"><Icon name="feed" /></span><b>View</b><b>Feed</b></button>
               <button className="glass action" onClick={() => setView('progress')}><span className="amber"><Icon name="progress" /></span><b>View</b><b>Progress</b></button>
             </section>
             {!!goals.length && (
@@ -959,7 +977,7 @@ function NutritionView({ nutrition, onEdit, onDelete, onAdd, search, setSearch, 
 function ProgressView({ progress, onEdit, onDelete, onAdd }) {
   return (
     <Panel title="Progress" action="Update progress" onAction={onAdd}>
-      <ProgressChart entries={progress} />
+      <ProgressChart entries={progress} onTrackWeight={onAdd} />
       <div className="record-grid">
         {progress.length ? progress.map((entry) => (
           <article className="record-card glass" key={entry._id}>
@@ -1063,7 +1081,7 @@ function CommunityView({
             </article>
           )) : <EmptyState icon="bell" title="No notifications" text="Server notifications will appear here." />}
         </div>
-        <div className="glass side-list">
+        <div className="glass side-list reminders-col">
           <div className="subheading"><h3>Reminders</h3><button className="link-btn compact" onClick={onReminder}>Add</button></div>
           {reminders.length ? reminders.map((item) => (
             <article key={item._id}>
@@ -1986,6 +2004,7 @@ function App() {
       icon: 'scale',
       color: 'cyan',
       progress: totals.latestWeight ? 100 : 0,
+      opensForm: 'progress',
     },
   ];
 
